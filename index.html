@@ -181,34 +181,67 @@
           </div>
 
           <form id="journalForm" class="journal-form">
-            <input id="jDate" type="datetime-local" />
-            <select id="jAsset"></select>
-            <select id="jType">
-              <option>Watch Only</option>
-              <option>Buy</option>
-              <option>Sell</option>
-              <option>No Trade</option>
-            </select>
-            <input id="jEntry" placeholder="Entry zone" />
-            <input id="jSl" placeholder="Stop loss" />
-            <input id="jTp" placeholder="TP1 / TP2 / TP3" />
-            <input id="jScore" placeholder="Score /10" />
-            <select id="jResult">
-              <option>Pending</option>
-              <option>Win</option>
-              <option>Loss</option>
-              <option>Break Even</option>
-              <option>Skipped</option>
-            </select>
-            <textarea id="jNotes" rows="3" placeholder="Reason, confirmation, invalidation, news risk..."></textarea>
+            <label>Date <input id="jDate" type="datetime-local" /></label>
+            <label>Symbol <select id="jAsset"></select></label>
+            <label>Trade type
+              <select id="jType">
+                <option>WATCH</option>
+                <option>BUY</option>
+                <option>SELL</option>
+                <option>NO TRADE</option>
+              </select>
+            </label>
+            <label>Bias <input id="jBias" placeholder="Bullish / Bearish / Neutral" /></label>
+            <label>Score /10 <input id="jScore" type="number" min="0" max="10" step="0.5" placeholder="8" /></label>
+            <label>Entry zone <input id="jEntry" placeholder="Entry zone" /></label>
+            <label>Stop loss <input id="jSl" placeholder="Stop loss" /></label>
+            <label>TP1 <input id="jTp1" placeholder="First target" /></label>
+            <label>TP2 <input id="jTp2" placeholder="Second target" /></label>
+            <label>TP3 <input id="jTp3" placeholder="Third target" /></label>
+            <label>Risk-reward <input id="jRr" placeholder="Example: 1:2" /></label>
+            <label>Result
+              <select id="jResult">
+                <option>Pending</option>
+                <option>Win</option>
+                <option>Loss</option>
+                <option>Breakeven</option>
+              </select>
+            </label>
+            <label>Profit/loss notes <textarea id="jProfitNotes" rows="3" placeholder="P/L amount, partials, management notes..."></textarea></label>
+            <label>Screenshot names <textarea id="jScreenshots" rows="3" placeholder="Screenshot file names or links saved elsewhere..."></textarea></label>
+            <label>Timeframe notes <textarea id="jTimeframeNotes" rows="3" placeholder="Monthly, Weekly, Daily, H4, H1, M15/M5 context..."></textarea></label>
+            <label>AI decision <textarea id="jAiDecision" rows="3" placeholder="AI decision, confirmation, invalidation, risk/news warning..."></textarea></label>
+            <label class="journal-notes-wide">Manual notes <textarea id="jNotes" rows="3" placeholder="Personal notes, psychology, execution review..."></textarea></label>
             <button class="primary-btn" type="submit">Add Journal Entry</button>
           </form>
+
+          <div class="journal-filters" aria-label="Journal filters">
+            <label>Symbol <select id="filterSymbol"><option value="">All symbols</option></select></label>
+            <label>Trade type
+              <select id="filterType">
+                <option value="">All trade types</option>
+                <option>BUY</option><option>SELL</option><option>WATCH</option><option>NO TRADE</option>
+              </select>
+            </label>
+            <label>Min score <input id="filterScoreMin" type="number" min="0" max="10" step="0.5" placeholder="0" /></label>
+            <label>Max score <input id="filterScoreMax" type="number" min="0" max="10" step="0.5" placeholder="10" /></label>
+            <label>Result
+              <select id="filterResult">
+                <option value="">All results</option>
+                <option>Pending</option><option>Win</option><option>Loss</option><option>Breakeven</option>
+              </select>
+            </label>
+            <label>Date from <input id="filterDateFrom" type="date" /></label>
+            <label>Date to <input id="filterDateTo" type="date" /></label>
+            <label class="filter-search">Search notes <input id="filterNotes" placeholder="AI decision, manual notes, screenshots..." /></label>
+            <button id="clearJournalFilters" class="ghost-btn small-btn" type="button">Clear Filters</button>
+          </div>
 
           <div class="journal-table-wrap">
             <table class="journal-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>Asset</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>Score</th><th>Result</th><th>Notes</th><th></th>
+                  <th>Date</th><th>Symbol</th><th>Type</th><th>Bias</th><th>Score</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>R:R</th><th>Result</th><th>AI Decision</th><th>Manual Notes</th><th></th>
                 </tr>
               </thead>
               <tbody id="journalBody"></tbody>
