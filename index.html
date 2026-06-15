@@ -83,6 +83,19 @@
           </div>
         </section>
 
+        <section class="workspace-panel glass-card chart-upload-panel" aria-labelledby="chartUploadTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Manual Chart Evidence</p>
+              <h2 id="chartUploadTitle">Screenshot Uploads & Chart Notes</h2>
+            </div>
+          </div>
+          <div class="risk-warning local-storage-warning">
+            <strong>Local-only warning:</strong> screenshots are stored locally only in this browser and may be lost if browser storage is cleared. Files are never uploaded to a server.
+          </div>
+          <div id="timeframeUploadGrid" class="timeframe-upload-grid" aria-label="Timeframe screenshot uploads and notes"></div>
+        </section>
+
         <aside class="workspace-panel glass-card calendar-panel" aria-labelledby="calendarTitle">
           <div class="section-head">
             <div>
@@ -115,8 +128,16 @@
               <textarea id="chartNotes" rows="5" placeholder="Example: Monthly bullish, Weekly near supply, H4 CHoCH, M15 liquidity sweep below support..."></textarea>
             </label>
             <label>
-              Calendar events / macro notes
-              <textarea id="calendarNotes" rows="5" placeholder="Paste verified high-impact events, DXY, US10Y, Fed speakers, CPI/NFP/FOMC notes..."></textarea>
+              DXY notes
+              <textarea id="dxyNotes" rows="4" placeholder="Paste DXY trend, key levels, and dollar-strength context..."></textarea>
+            </label>
+            <label>
+              US bond yield notes
+              <textarea id="bondYieldNotes" rows="4" placeholder="Paste US10Y/US02Y yield direction, level reaction, and risk impact..."></textarea>
+            </label>
+            <label>
+              News / calendar notes
+              <textarea id="calendarNotes" rows="5" placeholder="Paste verified high-impact events, Fed speakers, CPI/NFP/FOMC notes..."></textarea>
             </label>
             <label>
               Geopolitical / sentiment notes

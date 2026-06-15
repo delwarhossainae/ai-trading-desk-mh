@@ -30,10 +30,32 @@ const timeframeLabels = {
 
 let activePromptType = "chatgpt";
 
+const manualTimeframes = [
+  { key: "monthly", label: "Monthly" },
+  { key: "weekly", label: "Weekly" },
+  { key: "daily", label: "Daily" },
+  { key: "h4", label: "H4" },
+  { key: "h1", label: "H1" },
+  { key: "m30", label: "M30" },
+  { key: "m15", label: "M15" },
+  { key: "m5", label: "M5" }
+];
+
+const analysisFieldIds = [
+  "currentPrice",
+  "chartNotes",
+  "dxyNotes",
+  "bondYieldNotes",
+  "calendarNotes",
+  "newsNotes"
+];
+
 const $ = (id) => document.getElementById(id);
 
 function init() {
   hydrateAssetSelects();
+  renderTimeframeUploads();
+  hydrateSavedAnalysisInputs();
   hydrateSession();
   bindEvents();
   updateThemeButton();
@@ -78,6 +100,7 @@ function bindEvents() {
   });
   $('timeframeSelect').addEventListener('change', loadTradingViewChart);
   $('reloadCalendar').addEventListener('click', loadCalendarWidget);
+  bindLocalAnalysisStorage();
   $('generatePrompt').addEventListener('click', generatePrompt);
   $('copyPrompt').addEventListener('click', copyPrompt);
   $('chatgptTab').addEventListener('click', () => setPromptType('chatgpt'));
@@ -91,6 +114,130 @@ function bindEvents() {
   $('clearJournalFilters').addEventListener('click', clearJournalFilters);
   $('exportCsv').addEventListener('click', exportCsv);
   $('exportPdf').addEventListener('click', exportPdf);
+}
+
+function renderTimeframeUploads() {
+  const grid = $('timeframeUploadGrid');
+  if (!grid) return;
+  grid.innerHTML = manualTimeframes.map(({ key, label }) => `
+    <article class="timeframe-card">
+      <div class="timeframe-card-head">
+        <h3>${label}</h3>
+        <button class="ghost-btn small-btn" type="button" data-clear-timeframe="${key}">Clear</button>
+      </div>
+      <label>
+        ${label} screenshot
+        <input id="${key}Screenshot" type="file" accept="image/*" data-timeframe-upload="${key}" />
+      </label>
+      <div id="${key}Preview" class="screenshot-preview" role="status" aria-label="${label} screenshot preview">No screenshot selected.</div>
+      <label>
+        ${label} notes
+        <textarea id="${key}Notes" rows="4" data-timeframe-notes="${key}" placeholder="${label} notes:"></textarea>
+      </label>
+    </article>
+  `).join('');
+  hydrateTimeframeUploads();
+}
+
+function bindLocalAnalysisStorage() {
+  analysisFieldIds.forEach((id) => {
+    const field = $(id);
+    if (!field) return;
+    field.addEventListener('input', () => localStorage.setItem(`mh_analysis_${id}`, field.value));
+  });
+
+  document.querySelectorAll('[data-timeframe-notes]').forEach((field) => {
+    field.addEventListener('input', () => {
+      localStorage.setItem(`mh_timeframe_notes_${field.dataset.timeframeNotes}`, field.value);
+      syncChartNotesSummary();
+    });
+  });
+
+  document.querySelectorAll('[data-timeframe-upload]').forEach((input) => {
+    input.addEventListener('change', handleScreenshotUpload);
+  });
+}
+
+function hydrateSavedAnalysisInputs() {
+  analysisFieldIds.forEach((id) => {
+    const field = $(id);
+    if (!field) return;
+    field.value = localStorage.getItem(`mh_analysis_${id}`) || '';
+  });
+}
+
+function hydrateTimeframeUploads() {
+  manualTimeframes.forEach(({ key }) => {
+    const notes = $(`${key}Notes`);
+    if (notes) notes.value = localStorage.getItem(`mh_timeframe_notes_${key}`) || '';
+    renderScreenshotPreview(key);
+  });
+  syncChartNotesSummary();
+}
+
+function handleScreenshotUpload(event) {
+  const input = event.target;
+  const key = input.dataset.timeframeUpload;
+  const file = input.files && input.files[0];
+  if (!file || !key) return;
+  if (!file.type.startsWith('image/')) {
+    window.alert('Please choose an image file for the chart screenshot.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      localStorage.setItem(`mh_timeframe_screenshot_${key}`, String(reader.result));
+      localStorage.setItem(`mh_timeframe_screenshot_name_${key}`, file.name);
+      renderScreenshotPreview(key);
+      syncChartNotesSummary();
+    } catch (error) {
+      window.alert('This screenshot could not be saved locally. Browser storage may be full; try a smaller image.');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderScreenshotPreview(key) {
+  const preview = $(`${key}Preview`);
+  if (!preview) return;
+  const image = localStorage.getItem(`mh_timeframe_screenshot_${key}`);
+  const name = localStorage.getItem(`mh_timeframe_screenshot_name_${key}`) || 'Saved screenshot';
+  preview.innerHTML = image
+    ? `<img src="${image}" alt="${escapeHtml(name)} preview" /><span>${escapeHtml(name)}</span>`
+    : 'No screenshot selected.';
+}
+
+function clearTimeframeEvidence(key) {
+  localStorage.removeItem(`mh_timeframe_screenshot_${key}`);
+  localStorage.removeItem(`mh_timeframe_screenshot_name_${key}`);
+  localStorage.removeItem(`mh_timeframe_notes_${key}`);
+  const notes = $(`${key}Notes`);
+  const upload = $(`${key}Screenshot`);
+  if (notes) notes.value = '';
+  if (upload) upload.value = '';
+  renderScreenshotPreview(key);
+  syncChartNotesSummary();
+}
+
+function timeframeEvidenceSummary() {
+  return manualTimeframes.map(({ key, label }) => {
+    const hasScreenshot = localStorage.getItem(`mh_timeframe_screenshot_${key}`) ? 'Uploaded locally' : 'Missing';
+    const notes = ($(`${key}Notes`)?.value || '').trim() || 'No notes provided.';
+    return `${label} screenshot: ${hasScreenshot}\n${label} notes: ${notes}`;
+  }).join('\n\n');
+}
+
+function syncChartNotesSummary() {
+  const chartNotes = $('chartNotes');
+  if (!chartNotes) return;
+  const existing = chartNotes.value.trim();
+  const summary = timeframeEvidenceSummary();
+  if (!existing || existing.includes('screenshot:') || existing.includes('notes:')) {
+    chartNotes.value = summary;
+    localStorage.setItem('mh_analysis_chartNotes', summary);
+  }
 }
 
 function onLogin(event) {
@@ -215,6 +362,8 @@ function generatePrompt() {
   const interval = timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value;
   const currentPrice = $('currentPrice').value.trim() || 'Not provided — do not invent exact levels.';
   const chartNotes = $('chartNotes').value.trim() || 'No screenshot notes provided yet. Ask me to upload Monthly, Weekly, Daily, H4, H1, M30, M15, and M5 screenshots before giving exact levels.';
+  const dxyNotes = $('dxyNotes').value.trim() || 'No DXY notes provided.';
+  const bondYieldNotes = $('bondYieldNotes').value.trim() || 'No US bond yield notes provided.';
   const calendarNotes = $('calendarNotes').value.trim() || 'Latest economic calendar/news data not pasted here. Say: Latest news/calendar data could not be verified.';
   const newsNotes = $('newsNotes').value.trim() || 'No verified geopolitical/sentiment notes pasted.';
   const risk = $('riskProfile').value;
@@ -234,7 +383,13 @@ Risk profile: ${risk}
 CHART / SCREENSHOT NOTES
 ${chartNotes}
 
-ECONOMIC CALENDAR / MACRO NOTES
+DXY NOTES
+${dxyNotes}
+
+US BOND YIELD NOTES
+${bondYieldNotes}
+
+NEWS / ECONOMIC CALENDAR NOTES
 ${calendarNotes}
 
 GEOPOLITICAL / SENTIMENT NOTES
@@ -485,6 +640,11 @@ function clearJournalFilters() {
 
 document.addEventListener('click', (event) => {
   const button = event.target.closest('[data-delete-id]');
+  const clearButton = event.target.closest('[data-clear-timeframe]');
+  if (clearButton) {
+    clearTimeframeEvidence(clearButton.dataset.clearTimeframe);
+    return;
+  }
   if (!button) return;
   deleteJournalEntry(button.dataset.deleteId);
 });
