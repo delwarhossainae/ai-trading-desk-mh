@@ -244,12 +244,24 @@ code { color: var(--accent); }
 .decision-box.watch { border-color: rgba(255, 211, 106, .45); }
 .decision-box.valid { border-color: rgba(69, 212, 131, .45); }
 .rules-list { color: var(--muted); line-height: 1.8; padding-left: 20px; }
-.journal-form {
+.journal-form,
+.journal-filters {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 15px;
 }
-.journal-form textarea { grid-column: span 3; min-height: 44px; }
-.journal-form button { min-height: 58px; }
+.journal-form textarea { min-height: 88px; }
+.journal-form .journal-notes-wide { grid-column: span 3; }
+.journal-form button { min-height: 58px; align-self: end; }
+.journal-filters {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.045);
+}
+.journal-filters .filter-search { grid-column: span 2; }
+.journal-filters button { align-self: end; }
 .journal-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .journal-table-wrap {
   overflow: auto;
@@ -258,7 +270,7 @@ code { color: var(--accent); }
 }
 .journal-table {
   width: 100%;
-  min-width: 1060px;
+  min-width: 1460px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -280,8 +292,8 @@ code { color: var(--accent); }
   .topbar, .section-head { align-items: stretch; flex-direction: column; }
   .topbar-actions, .journal-actions, .prompt-actions { justify-content: flex-start; width: 100%; }
   .topbar-actions > *, .journal-actions > *, .prompt-actions > * { flex: 1 1 140px; }
-  .control-grid, .prompt-form-grid, .journal-form { grid-template-columns: 1fr; }
-  .journal-form textarea { grid-column: span 1; }
+  .control-grid, .prompt-form-grid, .journal-form, .journal-filters { grid-template-columns: 1fr; }
+  .journal-form .journal-notes-wide, .journal-filters .filter-search { grid-column: span 1; }
   .tv-box { height: clamp(430px, 72vh, 560px); border-radius: 16px; }
   .calendar-widget { height: clamp(460px, 70vh, 560px); border-radius: 16px; }
   .workspace-panel, .topbar, .login-card { border-radius: 18px; padding: 15px; }

@@ -43,8 +43,12 @@ function init() {
 }
 
 function hydrateAssetSelects() {
-  const selects = [$('assetSelect'), $('jAsset')];
+  const selects = [$('assetSelect'), $('jAsset'), $('filterSymbol')];
   selects.forEach((select) => {
+    if (select.id === 'filterSymbol') {
+      select.innerHTML = '<option value="">All symbols</option>' + assets.map((item) => `<option value="${item.short}">${item.label}</option>`).join('');
+      return;
+    }
     select.innerHTML = assets.map((item) => `<option value="${item.tv}">${item.label}</option>`).join('');
   });
 }
@@ -80,6 +84,11 @@ function bindEvents() {
   $('claudeTab').addEventListener('click', () => setPromptType('claude'));
   document.querySelectorAll('.score-input').forEach((input) => input.addEventListener('input', calculateScore));
   $('journalForm').addEventListener('submit', addJournalEntry);
+  ['filterSymbol', 'filterType', 'filterScoreMin', 'filterScoreMax', 'filterResult', 'filterDateFrom', 'filterDateTo', 'filterNotes'].forEach((id) => {
+    $(id).addEventListener('input', renderJournal);
+    $(id).addEventListener('change', renderJournal);
+  });
+  $('clearJournalFilters').addEventListener('click', clearJournalFilters);
   $('exportCsv').addEventListener('click', exportCsv);
   $('exportPdf').addEventListener('click', exportPdf);
 }
@@ -346,22 +355,69 @@ function setJournal(items) {
   localStorage.setItem('mh_journal', JSON.stringify(items));
 }
 
+function normalizeTradeType(type = '') {
+  const upper = String(type).trim().toUpperCase();
+  if (upper === 'BUY') return 'BUY';
+  if (upper === 'SELL') return 'SELL';
+  if (upper === 'NO TRADE') return 'NO TRADE';
+  return 'WATCH';
+}
+
+function normalizeResult(result = '') {
+  const value = String(result).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (value === 'win') return 'Win';
+  if (value === 'loss') return 'Loss';
+  if (value === 'break even' || value === 'breakeven') return 'Breakeven';
+  return 'Pending';
+}
+
+function normalizeJournalEntry(row = {}) {
+  return {
+    id: row.id || createId(),
+    date: row.date || '',
+    asset: row.asset || row.symbol || '',
+    type: normalizeTradeType(row.type),
+    bias: row.bias || '',
+    score: row.score || '',
+    entry: row.entry || '',
+    sl: row.sl || row.stopLoss || '',
+    tp1: row.tp1 || row.tp || '',
+    tp2: row.tp2 || '',
+    tp3: row.tp3 || '',
+    rr: row.rr || row.riskReward || '',
+    result: normalizeResult(row.result),
+    profitNotes: row.profitNotes || '',
+    screenshots: row.screenshots || '',
+    timeframeNotes: row.timeframeNotes || '',
+    aiDecision: row.aiDecision || '',
+    notes: row.notes || row.manualNotes || ''
+  };
+}
+
 function addJournalEntry(event) {
   event.preventDefault();
   const asset = assets.find(item => item.tv === $('jAsset').value) || assets[0];
-  const entry = {
+  const entry = normalizeJournalEntry({
     id: createId(),
     date: $('jDate').value,
     asset: asset.short,
     type: $('jType').value,
+    bias: $('jBias').value.trim(),
+    score: $('jScore').value.trim(),
     entry: $('jEntry').value.trim(),
     sl: $('jSl').value.trim(),
-    tp: $('jTp').value.trim(),
-    score: $('jScore').value.trim(),
+    tp1: $('jTp1').value.trim(),
+    tp2: $('jTp2').value.trim(),
+    tp3: $('jTp3').value.trim(),
+    rr: $('jRr').value.trim(),
     result: $('jResult').value,
+    profitNotes: $('jProfitNotes').value.trim(),
+    screenshots: $('jScreenshots').value.trim(),
+    timeframeNotes: $('jTimeframeNotes').value.trim(),
+    aiDecision: $('jAiDecision').value.trim(),
     notes: $('jNotes').value.trim()
-  };
-  const journal = [entry, ...getJournal()];
+  });
+  const journal = [entry, ...getJournal().map(normalizeJournalEntry)];
   setJournal(journal);
   $('journalForm').reset();
   setDefaultJournalDate();
@@ -369,27 +425,62 @@ function addJournalEntry(event) {
   renderJournal();
 }
 
+function getFilteredJournal() {
+  const symbol = $('filterSymbol').value;
+  const type = $('filterType').value;
+  const minScore = parseFloat($('filterScoreMin').value);
+  const maxScore = parseFloat($('filterScoreMax').value);
+  const result = $('filterResult').value;
+  const from = $('filterDateFrom').value;
+  const to = $('filterDateTo').value;
+  const notes = $('filterNotes').value.trim().toLowerCase();
+
+  return getJournal().map(normalizeJournalEntry).filter((row) => {
+    const score = parseFloat(row.score);
+    const entryDate = (row.date || '').slice(0, 10);
+    const searchableNotes = [row.profitNotes, row.screenshots, row.timeframeNotes, row.aiDecision, row.notes].join(' ').toLowerCase();
+    return (!symbol || row.asset === symbol)
+      && (!type || row.type === type)
+      && (Number.isNaN(minScore) || (!Number.isNaN(score) && score >= minScore))
+      && (Number.isNaN(maxScore) || (!Number.isNaN(score) && score <= maxScore))
+      && (!result || row.result === result)
+      && (!from || entryDate >= from)
+      && (!to || entryDate <= to)
+      && (!notes || searchableNotes.includes(notes));
+  });
+}
+
 function renderJournal() {
   const body = $('journalBody');
-  const journal = getJournal();
+  const journal = getFilteredJournal();
   if (!journal.length) {
-    body.innerHTML = '<tr><td colspan="10" class="muted">No journal entries yet. Add your first watchlist or trade decision.</td></tr>';
+    body.innerHTML = '<tr><td colspan="15" class="muted">No journal entries match the current filters. Add your first watchlist or trade decision.</td></tr>';
     return;
   }
   body.innerHTML = journal.map((row) => `
     <tr>
-      <td data-label="Date">${escapeHtml(row.date || '')}</td>
-      <td data-label="Asset">${escapeHtml(row.asset || '')}</td>
-      <td data-label="Type">${escapeHtml(row.type || '')}</td>
-      <td data-label="Entry">${escapeHtml(row.entry || '')}</td>
-      <td data-label="SL">${escapeHtml(row.sl || '')}</td>
-      <td data-label="TP">${escapeHtml(row.tp || '')}</td>
-      <td data-label="Score">${escapeHtml(row.score || '')}</td>
-      <td data-label="Result">${escapeHtml(row.result || '')}</td>
-      <td data-label="Notes">${escapeHtml(row.notes || '')}</td>
+      <td data-label="Date">${escapeHtml(row.date)}</td>
+      <td data-label="Symbol">${escapeHtml(row.asset)}</td>
+      <td data-label="Type">${escapeHtml(row.type)}</td>
+      <td data-label="Bias">${escapeHtml(row.bias)}</td>
+      <td data-label="Score">${escapeHtml(row.score)}</td>
+      <td data-label="Entry">${escapeHtml(row.entry)}</td>
+      <td data-label="SL">${escapeHtml(row.sl)}</td>
+      <td data-label="TP1">${escapeHtml(row.tp1)}</td>
+      <td data-label="TP2">${escapeHtml(row.tp2)}</td>
+      <td data-label="TP3">${escapeHtml(row.tp3)}</td>
+      <td data-label="R:R">${escapeHtml(row.rr)}</td>
+      <td data-label="Result">${escapeHtml(row.result)}</td>
+      <td data-label="AI Decision">${escapeHtml(row.aiDecision)}</td>
+      <td data-label="Manual Notes">${escapeHtml(row.notes)}</td>
       <td data-label="Action"><button class="delete-row" type="button" data-delete-id="${escapeHtml(row.id)}">Delete</button></td>
     </tr>
   `).join('');
+}
+
+function clearJournalFilters() {
+  ['filterSymbol', 'filterType', 'filterScoreMin', 'filterScoreMax', 'filterResult', 'filterDateFrom', 'filterDateTo', 'filterNotes'].forEach((id) => ($(id).value = ''));
+  renderJournal();
 }
 
 document.addEventListener('click', (event) => {
@@ -404,25 +495,29 @@ function deleteJournalEntry(id) {
 }
 window.deleteJournalEntry = deleteJournalEntry;
 
+function journalExportRows() {
+  return getJournal().map(normalizeJournalEntry);
+}
+
 function exportCsv() {
-  const journal = getJournal();
-  const headers = ['Date','Asset','Type','Entry','Stop Loss','Take Profit','Score','Result','Notes'];
-  const rows = journal.map((row) => [row.date,row.asset,row.type,row.entry,row.sl,row.tp,row.score,row.result,row.notes]);
+  const journal = journalExportRows();
+  const headers = ['Date','Symbol','Trade Type','Bias','Score /10','Entry Zone','Stop Loss','TP1','TP2','TP3','Risk-Reward','Result','Profit/Loss Notes','Screenshot Names','Timeframe Notes','AI Decision','Manual Notes'];
+  const rows = journal.map((row) => [row.date,row.asset,row.type,row.bias,row.score,row.entry,row.sl,row.tp1,row.tp2,row.tp3,row.rr,row.result,row.profitNotes,row.screenshots,row.timeframeNotes,row.aiDecision,row.notes]);
   const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
   downloadFile(`ai-trading-journal-${todayStamp()}.csv`, csv, 'text/csv;charset=utf-8');
 }
 
 function exportPdf() {
-  const journal = getJournal();
+  const journal = journalExportRows();
   const htmlRows = journal.map((row) => `
-    <tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.asset)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.entry)}</td><td>${escapeHtml(row.sl)}</td><td>${escapeHtml(row.tp)}</td><td>${escapeHtml(row.score)}</td><td>${escapeHtml(row.result)}</td><td>${escapeHtml(row.notes)}</td></tr>
+    <tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.asset)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.bias)}</td><td>${escapeHtml(row.score)}</td><td>${escapeHtml(row.entry)}</td><td>${escapeHtml(row.sl)}</td><td>${escapeHtml(row.tp1)}</td><td>${escapeHtml(row.tp2)}</td><td>${escapeHtml(row.tp3)}</td><td>${escapeHtml(row.rr)}</td><td>${escapeHtml(row.result)}</td><td>${escapeHtml(row.aiDecision)}</td><td>${escapeHtml(row.notes)}</td></tr>
   `).join('');
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     window.alert('PDF export was blocked by the browser. Please allow pop-ups for this site and try Export PDF again.');
     return;
   }
-  printWindow.document.write(`<!doctype html><html><head><title>AI Trading Journal</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}th{background:#f3f4f6}.muted{color:#666}</style></head><body><h1>AI Trading Journal</h1><p class="muted">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Date</th><th>Asset</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>Score</th><th>Result</th><th>Notes</th></tr></thead><tbody>${htmlRows || '<tr><td colspan="9">No entries.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+  printWindow.document.write(`<!doctype html><html><head><title>AI Trading Journal</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}th{background:#f3f4f6}.muted{color:#666}</style></head><body><h1>AI Trading Journal</h1><p class="muted">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Date</th><th>Symbol</th><th>Type</th><th>Bias</th><th>Score</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>R:R</th><th>Result</th><th>AI Decision</th><th>Manual Notes</th></tr></thead><tbody>${htmlRows || '<tr><td colspan="14">No entries.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
   printWindow.document.close();
 }
 
