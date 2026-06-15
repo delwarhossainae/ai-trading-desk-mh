@@ -165,6 +165,9 @@ function loadTradingViewChart() {
     studies: [],
     support_host: "https://www.tradingview.com"
   });
+  script.onerror = () => {
+    container.innerHTML = '<div class="widget-fallback" role="status">TradingView chart could not load. Check your internet connection, ad blocker, or reload the chart.</div>';
+  };
   container.querySelector('.tradingview-widget-container').appendChild(script);
 }
 
@@ -185,6 +188,9 @@ function loadCalendarWidget() {
     width: "100%",
     height: "580"
   });
+  script.onerror = () => {
+    container.innerHTML = '<div class="widget-fallback" role="status">Economic calendar could not load. Latest news/calendar data could not be verified here; check TradingView or your broker calendar before trading.</div>';
+  };
   container.querySelector('.tradingview-widget-container').appendChild(script);
 }
 
@@ -406,6 +412,10 @@ function exportPdf() {
     <tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.asset)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.entry)}</td><td>${escapeHtml(row.sl)}</td><td>${escapeHtml(row.tp)}</td><td>${escapeHtml(row.score)}</td><td>${escapeHtml(row.result)}</td><td>${escapeHtml(row.notes)}</td></tr>
   `).join('');
   const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    window.alert('PDF export was blocked by the browser. Please allow pop-ups for this site and try Export PDF again.');
+    return;
+  }
   printWindow.document.write(`<!doctype html><html><head><title>AI Trading Journal</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}th{background:#f3f4f6}.muted{color:#666}</style></head><body><h1>AI Trading Journal</h1><p class="muted">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Date</th><th>Asset</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>Score</th><th>Result</th><th>Notes</th></tr></thead><tbody>${htmlRows || '<tr><td colspan="9">No entries.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
   printWindow.document.close();
 }
