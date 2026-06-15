@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Trading Desk MH | XAUUSD Multi-Timeframe Dashboard</title>
+  <meta name="description" content="AI Trading Desk MVP dashboard for TradingView chart analysis, economic calendar review, ChatGPT and Claude prompt generation, trade scorecard, and journal export." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <section id="loginView" class="login-view" aria-labelledby="loginTitle">
+      <div class="login-card glass-card">
+        <p class="eyebrow">AI Trading Desk MVP</p>
+        <h1 id="loginTitle">Secure Local Access</h1>
+        <p class="muted">This MVP uses a browser-only demo login. Use proper server authentication before client/live account use.</p>
+        <form id="loginForm" class="form-grid">
+          <label>
+            Username
+            <input id="loginUser" autocomplete="username" placeholder="admin" required />
+          </label>
+          <label>
+            Password
+            <input id="loginPass" type="password" autocomplete="current-password" placeholder="mhdesk" required />
+          </label>
+          <button class="primary-btn" type="submit">Open Dashboard</button>
+          <p id="loginError" class="error-text" role="alert"></p>
+        </form>
+        <div class="hint-box">
+          <strong>Default demo login:</strong> admin / mhdesk<br />
+          Change this in <code>app.js</code> before publishing publicly.
+        </div>
+      </div>
+    </section>
+
+    <section id="dashboardView" class="dashboard-view hidden" aria-label="Trading dashboard">
+      <header class="topbar glass-card">
+        <div>
+          <p class="eyebrow">Mohammad Hossain Trading Workflow</p>
+          <h1>AI Trading Desk</h1>
+          <p class="muted">Manual analysis cockpit for ChatGPT Plus, Claude Pro, TradingView, and economic-calendar confirmation.</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="themeToggle" class="ghost-btn" type="button">Light Mode</button>
+          <button id="logoutBtn" class="danger-btn" type="button">Logout</button>
+        </div>
+      </header>
+
+      <main class="dashboard-grid">
+        <section class="workspace-panel glass-card chart-panel" aria-labelledby="chartTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">TradingView Workspace</p>
+              <h2 id="chartTitle">Chart & Timeframe</h2>
+            </div>
+            <button id="reloadChart" class="ghost-btn small-btn" type="button">Reload Chart</button>
+          </div>
+
+          <div class="control-grid compact-controls">
+            <label>
+              Asset
+              <select id="assetSelect"></select>
+            </label>
+            <label>
+              Timeframe
+              <select id="timeframeSelect">
+                <option value="1M">Monthly</option>
+                <option value="1W">Weekly</option>
+                <option value="D">Daily</option>
+                <option value="240">H4</option>
+                <option value="60">H1</option>
+                <option value="30">M30</option>
+                <option value="15" selected>M15</option>
+                <option value="5">M5</option>
+              </select>
+            </label>
+            <label>
+              Current price / area
+              <input id="currentPrice" placeholder="Paste live price if available" />
+            </label>
+          </div>
+
+          <div id="tradingViewContainer" class="tv-box" aria-label="TradingView chart"></div>
+
+          <div class="indicator-note">
+            <strong>Chart setup checklist:</strong> EMA 50, EMA 200, Bollinger Bands 20/2, Volume, Daily Pivot Points, Fibonacci retracement/extension, support/resistance, BOS/CHoCH, liquidity sweep, rejection/engulfing confirmation.
+          </div>
+        </section>
+
+        <aside class="workspace-panel glass-card calendar-panel" aria-labelledby="calendarTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">News Risk</p>
+              <h2 id="calendarTitle">Economic Calendar</h2>
+            </div>
+            <button id="reloadCalendar" class="ghost-btn small-btn" type="button">Reload</button>
+          </div>
+          <div id="calendarWidget" class="calendar-widget"></div>
+          <div class="risk-warning">
+            <strong>Rule:</strong> If high-impact USD/Fed/CPI/NFP/FOMC news is close, avoid entry before the event and wait for confirmation after volatility.
+          </div>
+        </aside>
+
+        <section class="workspace-panel glass-card prompt-panel" aria-labelledby="promptTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Manual AI Workflow</p>
+              <h2 id="promptTitle">ChatGPT & Claude Prompt Generator</h2>
+            </div>
+            <div class="segmented" role="tablist" aria-label="Prompt type">
+              <button id="chatgptTab" class="seg-btn active" type="button">ChatGPT</button>
+              <button id="claudeTab" class="seg-btn" type="button">Claude</button>
+            </div>
+          </div>
+
+          <div class="prompt-form-grid">
+            <label>
+              Chart screenshot notes / uploaded timeframe status
+              <textarea id="chartNotes" rows="5" placeholder="Example: Monthly bullish, Weekly near supply, H4 CHoCH, M15 liquidity sweep below support..."></textarea>
+            </label>
+            <label>
+              Calendar events / macro notes
+              <textarea id="calendarNotes" rows="5" placeholder="Paste verified high-impact events, DXY, US10Y, Fed speakers, CPI/NFP/FOMC notes..."></textarea>
+            </label>
+            <label>
+              Geopolitical / sentiment notes
+              <textarea id="newsNotes" rows="4" placeholder="Paste verified geopolitical or safe-haven sentiment notes..."></textarea>
+            </label>
+            <label>
+              Risk profile
+              <select id="riskProfile">
+                <option value="Conservative: only score 8/10+ with 1:2 minimum R:R, avoid all high-impact news windows." selected>Conservative</option>
+                <option value="Balanced: allow watchlist setups at 7/10, entry only after confirmation." >Balanced</option>
+                <option value="Aggressive scalping: still no forced trades, but allow lower timeframe reaction entries after confirmation." >Aggressive scalping</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="prompt-actions">
+            <button id="generatePrompt" class="primary-btn" type="button">Generate Prompt</button>
+            <button id="copyPrompt" class="ghost-btn" type="button">Copy Prompt</button>
+            <a id="openChatGPT" class="ghost-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
+            <a id="openClaude" class="ghost-link" href="https://claude.ai/" target="_blank" rel="noopener noreferrer">Open Claude</a>
+          </div>
+          <textarea id="promptOutput" class="prompt-output" rows="16" readonly placeholder="Generated professional trading-analysis prompt will appear here..."></textarea>
+        </section>
+
+        <section class="workspace-panel glass-card score-panel" aria-labelledby="scoreTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Trade Filter</p>
+              <h2 id="scoreTitle">10-Point Scorecard</h2>
+            </div>
+            <span id="scoreBadge" class="score-badge">0 / 10</span>
+          </div>
+          <div class="score-grid">
+            <label>Higher-timeframe alignment <input class="score-input" data-key="htf" type="number" min="0" max="2" step="0.5" value="0"></label>
+            <label>Fundamental/news support <input class="score-input" data-key="fundamental" type="number" min="0" max="2" step="0.5" value="0"></label>
+            <label>Market structure confirmation <input class="score-input" data-key="structure" type="number" min="0" max="2" step="0.5" value="0"></label>
+            <label>M15/M5 entry confirmation <input class="score-input" data-key="entry" type="number" min="0" max="2" step="0.5" value="0"></label>
+            <label>Risk-reward quality <input class="score-input" data-key="rr" type="number" min="0" max="2" step="0.5" value="0"></label>
+          </div>
+          <div id="tradeDecision" class="decision-box no-trade">
+            No Trade Setup — wait for better price action confirmation.
+          </div>
+          <ul class="rules-list">
+            <li>0–5 = No Trade</li>
+            <li>6–7 = Watch only</li>
+            <li>8 = Valid setup</li>
+            <li>9 = Strong setup</li>
+            <li>10 = Rare A+ setup</li>
+          </ul>
+        </section>
+
+        <section class="workspace-panel glass-card journal-panel" aria-labelledby="journalTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Execution Discipline</p>
+              <h2 id="journalTitle">Trade Journal</h2>
+            </div>
+            <div class="journal-actions">
+              <button id="exportCsv" class="ghost-btn small-btn" type="button">Export CSV</button>
+              <button id="exportPdf" class="ghost-btn small-btn" type="button">Export PDF</button>
+            </div>
+          </div>
+
+          <form id="journalForm" class="journal-form">
+            <input id="jDate" type="datetime-local" />
+            <select id="jAsset"></select>
+            <select id="jType">
+              <option>Watch Only</option>
+              <option>Buy</option>
+              <option>Sell</option>
+              <option>No Trade</option>
+            </select>
+            <input id="jEntry" placeholder="Entry zone" />
+            <input id="jSl" placeholder="Stop loss" />
+            <input id="jTp" placeholder="TP1 / TP2 / TP3" />
+            <input id="jScore" placeholder="Score /10" />
+            <select id="jResult">
+              <option>Pending</option>
+              <option>Win</option>
+              <option>Loss</option>
+              <option>Break Even</option>
+              <option>Skipped</option>
+            </select>
+            <textarea id="jNotes" rows="3" placeholder="Reason, confirmation, invalidation, news risk..."></textarea>
+            <button class="primary-btn" type="submit">Add Journal Entry</button>
+          </form>
+
+          <div class="journal-table-wrap">
+            <table class="journal-table">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Asset</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>Score</th><th>Result</th><th>Notes</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="journalBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
