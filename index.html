@@ -114,17 +114,17 @@
           <div class="section-head">
             <div>
               <p class="eyebrow">Manual AI Workflow</p>
-              <h2 id="promptTitle">ChatGPT & Claude Prompt Generator</h2>
+              <h2 id="promptTitle">Semi-Automatic Pro Prompt Builder</h2>
             </div>
             <div class="segmented" role="tablist" aria-label="Prompt type">
-              <button id="chatgptTab" class="seg-btn active" type="button">ChatGPT</button>
-              <button id="claudeTab" class="seg-btn" type="button">Claude</button>
+              <button id="chatgptTab" class="seg-btn active" type="button">ChatGPT Pro</button>
+              <button id="claudeTab" class="seg-btn" type="button">Claude Opinion</button>
             </div>
           </div>
 
           <div class="prompt-form-grid">
             <label>
-              Chart screenshot notes / uploaded timeframe status
+              Timeframe notes / uploaded screenshot status
               <textarea id="chartNotes" rows="5" placeholder="Example: Monthly bullish, Weekly near supply, H4 CHoCH, M15 liquidity sweep below support..."></textarea>
             </label>
             <label>
@@ -147,8 +147,8 @@
               Risk profile
               <select id="riskProfile">
                 <option value="Conservative: only score 8/10+ with 1:2 minimum R:R, avoid all high-impact news windows." selected>Conservative</option>
-                <option value="Balanced: allow watchlist setups at 7/10, entry only after confirmation." >Balanced</option>
-                <option value="Aggressive scalping: still no forced trades, but allow lower timeframe reaction entries after confirmation." >Aggressive scalping</option>
+                <option value="Balanced: watchlist only at 6–7/10, BUY/SELL allowed only at 8/10+ after confirmation." >Balanced</option>
+                <option value="Aggressive scalping: still no forced trades; BUY/SELL allowed only at 8/10+ after lower-timeframe confirmation." >Aggressive scalping</option>
               </select>
             </label>
           </div>
@@ -159,7 +159,7 @@
             <a id="openChatGPT" class="ghost-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
             <a id="openClaude" class="ghost-link" href="https://claude.ai/" target="_blank" rel="noopener noreferrer">Open Claude</a>
           </div>
-          <textarea id="promptOutput" class="prompt-output" rows="16" readonly placeholder="Generated professional trading-analysis prompt will appear here..."></textarea>
+          <textarea id="promptOutput" class="prompt-output" rows="16" readonly placeholder="Generated Semi-Automatic Pro prompt will appear here..."></textarea>
         </section>
 
         <section class="workspace-panel glass-card score-panel" aria-labelledby="scoreTitle">

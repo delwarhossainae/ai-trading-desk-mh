@@ -223,9 +223,21 @@ function clearTimeframeEvidence(key) {
 
 function timeframeEvidenceSummary() {
   return manualTimeframes.map(({ key, label }) => {
-    const hasScreenshot = localStorage.getItem(`mh_timeframe_screenshot_${key}`) ? 'Uploaded locally' : 'Missing';
+    const filename = localStorage.getItem(`mh_timeframe_screenshot_name_${key}`);
+    const hasScreenshot = filename ? `Uploaded locally (${filename})` : 'Missing — user must manually upload this screenshot to the AI chat before exact level analysis.';
     const notes = ($(`${key}Notes`)?.value || '').trim() || 'No notes provided.';
     return `${label} screenshot: ${hasScreenshot}\n${label} notes: ${notes}`;
+  }).join('\n\n');
+}
+
+function timeframePromptEvidence() {
+  return manualTimeframes.map(({ key, label }) => {
+    const filename = localStorage.getItem(`mh_timeframe_screenshot_name_${key}`);
+    const screenshotReference = filename
+      ? `${filename} — uploaded locally in this browser; user must attach this ${label} screenshot manually to the AI chat.`
+      : `Missing ${label} screenshot — do not invent exact levels from this timeframe.`;
+    const notes = ($(`${key}Notes`)?.value || '').trim() || 'No notes provided for this timeframe.';
+    return `${label}:\n- Notes: ${notes}\n- Screenshot reference: ${screenshotReference}`;
   }).join('\n\n');
 }
 
@@ -361,27 +373,22 @@ function generatePrompt() {
   const asset = selectedAsset();
   const interval = timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value;
   const currentPrice = $('currentPrice').value.trim() || 'Not provided — do not invent exact levels.';
-  const chartNotes = $('chartNotes').value.trim() || 'No screenshot notes provided yet. Ask me to upload Monthly, Weekly, Daily, H4, H1, M30, M15, and M5 screenshots before giving exact levels.';
-  const dxyNotes = $('dxyNotes').value.trim() || 'No DXY notes provided.';
-  const bondYieldNotes = $('bondYieldNotes').value.trim() || 'No US bond yield notes provided.';
-  const calendarNotes = $('calendarNotes').value.trim() || 'Latest economic calendar/news data not pasted here. Say: Latest news/calendar data could not be verified.';
-  const newsNotes = $('newsNotes').value.trim() || 'No verified geopolitical/sentiment notes pasted.';
+  const timeframeEvidence = timeframePromptEvidence();
+  const dxyNotes = $('dxyNotes').value.trim() || 'No DXY notes provided — state that DXY context is missing and do not infer dollar strength.';
+  const bondYieldNotes = $('bondYieldNotes').value.trim() || 'No US bond yield notes provided — state that yield context is missing and do not infer yield pressure.';
+  const calendarNotes = $('calendarNotes').value.trim() || 'Latest economic calendar data not pasted here. Say: Latest news/calendar data could not be verified.';
+  const newsNotes = $('newsNotes').value.trim() || 'No verified geopolitical/sentiment notes pasted — state that geopolitical context is missing.';
   const risk = $('riskProfile').value;
 
-  const basePrompt = `You are an expert ${asset.short} trading analyst, professional price action trader, multi-timeframe technical analyst, macroeconomic analyst, and risk-management specialist.
-
-TASK
-Analyze ${asset.short} using Monthly, Weekly, Daily, H4, H1, M30, M15, and M5. Find the best high-probability short-term scalping opportunity on M15 or M5 only if the setup is clean. Do not force a trade.
-
-CURRENT INPUTS
-Asset: ${asset.short}
+  const sharedPromptBody = `SEMI-AUTOMATIC PRO INPUTS
+Selected symbol: ${asset.short}
 TradingView symbol: ${asset.tv}
 Current active dashboard timeframe: ${interval}
-Current price / area: ${currentPrice}
+Current price: ${currentPrice}
 Risk profile: ${risk}
 
-CHART / SCREENSHOT NOTES
-${chartNotes}
+ALL TIMEFRAME NOTES + SCREENSHOT REFERENCES
+${timeframeEvidence}
 
 DXY NOTES
 ${dxyNotes}
@@ -389,27 +396,31 @@ ${dxyNotes}
 US BOND YIELD NOTES
 ${bondYieldNotes}
 
-NEWS / ECONOMIC CALENDAR NOTES
+ECONOMIC CALENDAR NOTES
 ${calendarNotes}
 
-GEOPOLITICAL / SENTIMENT NOTES
+NEWS / GEOPOLITICAL NOTES
 ${newsNotes}
 
-VERY IMPORTANT RULES
-- Do not give random buy/sell signals.
+STRICT TRADING RULEBOOK
+- Do not invent exact levels, entry zones, stop losses, or take-profit levels if price data, timeframe notes, or screenshot evidence is missing.
+- Never say guaranteed profit.
+- Never say 100% sure.
+- Do not give random BUY/SELL signals and do not force a trade.
+- No BUY or SELL unless the trade score is 8/10 or higher.
 - If the market is unclear, say exactly: No Trade Setup — wait for better price action confirmation.
-- Price action is the highest priority. Indicators are confirmation only.
-- Never say guaranteed profit or 100% sure.
-- If live price, chart screenshots, or current market data are not provided, do not invent exact levels.
+- Risk only 1% to 2% per trade.
+- Avoid new entries before high-impact news; wait until the event passes and price action confirms direction after volatility.
 - If latest news/calendar data cannot be verified, say: Latest news/calendar data could not be verified.
-- Avoid trading before high-impact news. Wait for confirmation after volatility.
+- Always include confirmation, invalidation, risk management, and news risk.
+- Price action is the highest priority. Indicators are confirmation only.
 
 TOOLS / INDICATORS TO CHECK
 EMA 50, EMA 200, Bollinger Bands 20/2, Volume, Daily Pivot Points, Fibonacci Retracement, Fibonacci Extension, support/resistance, HH/HL/LH/LL, BOS, CHoCH, liquidity sweep, rejection candle, engulfing candle, pin bar, fake breakout.
 
 ENTRY RULES
-BUY only if HTF is bullish or reversal is confirmed, M15/M5 sweeps liquidity below support, closes back above support, prints bullish CHoCH/BOS, retests broken level, confirms with bullish candle and volume, and R:R is at least 1:2.
-SELL only if HTF is bearish or reversal is confirmed, M15/M5 sweeps liquidity above resistance, closes back below resistance, prints bearish CHoCH/BOS, retests broken level, confirms with bearish candle and volume, and R:R is at least 1:2.
+BUY only if HTF is bullish or a reversal is confirmed, M15/M5 sweeps liquidity below support, closes back above support, prints bullish CHoCH/BOS, retests broken level, confirms with bullish candle and volume, no high-impact-news conflict exists, risk is 1% to 2%, and R:R is at least 1:2.
+SELL only if HTF is bearish or a reversal is confirmed, M15/M5 sweeps liquidity above resistance, closes back below resistance, prints bearish CHoCH/BOS, retests broken level, confirms with bearish candle and volume, no high-impact-news conflict exists, risk is 1% to 2%, and R:R is at least 1:2.
 
 SCORECARD
 Higher-timeframe alignment: /2
@@ -420,10 +431,13 @@ Risk-reward quality: /2
 Total: /10
 Decision rule: 0–5 No Trade, 6–7 Watch only, 8 Valid setup, 9 Strong setup, 10 Rare A+ setup. Only give BUY or SELL at 8/10 or higher.
 
-FINAL FORMAT
+FINAL ANSWER FORMAT — USE THIS TRADING RULEBOOK TEMPLATE
 ${asset.short} Multi-Timeframe Analysis
 Current Bias:
-News Risk:
+Current Price Data Status:
+DXY Impact:
+US Bond Yield Impact:
+Economic Calendar / News Risk:
 Geopolitical Sentiment:
 Monthly:
 Weekly:
@@ -433,6 +447,7 @@ H1:
 M30:
 M15:
 M5:
+Screenshot Evidence Check:
 Trade Score: /10
 Best Trade Setup:
 Trade Decision:
@@ -445,13 +460,32 @@ TP1:
 TP2:
 TP3:
 Risk-Reward:
+Risk Per Trade: 1% to 2% maximum
 Invalidation:
+Confirmation Required:
 Confidence:
 Reason:
 Final Warning:`;
 
-  const claudePrefix = `Act as my second-opinion risk filter. Be stricter than the first analysis. Challenge weak assumptions, identify missing evidence, and only approve a setup if the scoring rules support 8/10 or higher.\n\n`;
-  $('promptOutput').value = activePromptType === 'claude' ? claudePrefix + basePrompt : basePrompt;
+  const chatgptPrompt = `CHATGPT PROFESSIONAL ANALYSIS PROMPT
+
+You are an expert ${asset.short} trading analyst, professional price action trader, multi-timeframe technical analyst, macroeconomic analyst, and risk-management specialist.
+
+TASK
+Build a professional Semi-Automatic Pro analysis for ${asset.short} using Monthly, Weekly, Daily, H4, H1, M30, M15, and M5. Find the best high-probability short-term opportunity on M15 or M5 only if the setup is clean and all trading-rulebook conditions are satisfied.
+
+${sharedPromptBody}`;
+
+  const claudePrompt = `CLAUDE SECOND-OPINION PROMPT
+
+Act as my second-opinion risk filter for ${asset.short}. Be stricter than the first analysis. Challenge weak assumptions, identify missing evidence, reject any invented levels, and only approve a setup if the scoring rules support 8/10 or higher.
+
+TASK
+Review the same Semi-Automatic Pro inputs using Monthly, Weekly, Daily, H4, H1, M30, M15, and M5. Your job is to confirm whether the trade idea should be approved, downgraded to watchlist, or rejected as no trade.
+
+${sharedPromptBody}`;
+
+  $('promptOutput').value = activePromptType === 'claude' ? claudePrompt : chatgptPrompt;
 }
 
 async function copyPrompt() {
