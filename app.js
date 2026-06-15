@@ -30,6 +30,9 @@ const timeframeLabels = {
 
 let activePromptType = "chatgpt";
 
+const BACKUP_SCHEMA = "ai-trading-desk-mh-local-backup";
+const BACKUP_VERSION = 1;
+
 const manualTimeframes = [
   { key: "monthly", label: "Monthly" },
   { key: "weekly", label: "Weekly" },
@@ -114,6 +117,10 @@ function bindEvents() {
   $('clearJournalFilters').addEventListener('click', clearJournalFilters);
   $('exportCsv').addEventListener('click', exportCsv);
   $('exportPdf').addEventListener('click', exportPdf);
+  $('exportBackup').addEventListener('click', exportLocalBackup);
+  $('importBackupTrigger').addEventListener('click', () => $('importBackupFile').click());
+  $('importBackupFile').addEventListener('change', importLocalBackup);
+  $('clearLocalData').addEventListener('click', clearAllLocalData);
 }
 
 function renderTimeframeUploads() {
@@ -713,6 +720,128 @@ function exportPdf() {
   }
   printWindow.document.write(`<!doctype html><html><head><title>AI Trading Journal</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}th{background:#f3f4f6}.muted{color:#666}</style></head><body><h1>AI Trading Journal</h1><p class="muted">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Date</th><th>Symbol</th><th>Type</th><th>Bias</th><th>Score</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>R:R</th><th>Result</th><th>AI Decision</th><th>Manual Notes</th></tr></thead><tbody>${htmlRows || '<tr><td colspan="14">No entries.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
   printWindow.document.close();
+}
+
+function getAppLocalStorageData() {
+  const data = {};
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && key.startsWith('mh_')) {
+      data[key] = localStorage.getItem(key);
+    }
+  }
+  return data;
+}
+
+function exportLocalBackup() {
+  try {
+    const backup = {
+      schema: BACKUP_SCHEMA,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      origin: window.location.origin,
+      data: getAppLocalStorageData()
+    };
+    downloadFile(`ai-trading-desk-backup-${todayStamp()}.json`, JSON.stringify(backup, null, 2), 'application/json;charset=utf-8');
+    showBackupStatus('JSON backup exported successfully.', 'success');
+  } catch (error) {
+    showBackupStatus('Backup export failed. Please try again or check browser storage access.', 'error');
+  }
+}
+
+function validateBackupPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Backup file must contain a JSON object.');
+  }
+  if (payload.schema !== BACKUP_SCHEMA) {
+    throw new Error('Backup schema is not recognized for this dashboard.');
+  }
+  if (payload.version !== BACKUP_VERSION) {
+    throw new Error('Backup version is not supported.');
+  }
+  if (!payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) {
+    throw new Error('Backup data is missing or invalid.');
+  }
+  Object.entries(payload.data).forEach(([key, value]) => {
+    if (!key.startsWith('mh_')) {
+      throw new Error(`Backup contains unsupported key: ${key}`);
+    }
+    if (typeof value !== 'string' && value !== null) {
+      throw new Error(`Backup value for ${key} must be a string or null.`);
+    }
+  });
+  if (payload.data.mh_journal) {
+    const journal = JSON.parse(payload.data.mh_journal);
+    if (!Array.isArray(journal)) {
+      throw new Error('Journal data must be an array.');
+    }
+  }
+}
+
+function restoreUiFromLocalStorage() {
+  hydrateSavedAnalysisInputs();
+  hydrateTimeframeUploads();
+  hydrateSession();
+  updateThemeButton();
+  setDefaultJournalDate();
+  $('jAsset').value = $('assetSelect').value;
+  renderJournal();
+  calculateScore();
+}
+
+function importLocalBackup(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const payload = JSON.parse(String(reader.result || ''));
+      validateBackupPayload(payload);
+      const keyCount = Object.keys(payload.data).length;
+      const confirmed = window.confirm(`Import this JSON backup and overwrite existing AI Trading Desk local data?\n\nThis will replace ${keyCount} saved localStorage item(s) and cannot be undone unless you export a current backup first.`);
+      if (!confirmed) {
+        showBackupStatus('Import cancelled. Existing local data was not changed.', '');
+        return;
+      }
+      Object.keys(getAppLocalStorageData()).forEach((key) => localStorage.removeItem(key));
+      Object.entries(payload.data).forEach(([key, value]) => {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      });
+      restoreUiFromLocalStorage();
+      showBackupStatus('JSON backup imported successfully. Local app data was restored.', 'success');
+    } catch (error) {
+      showBackupStatus(`Import failed: ${error.message}`, 'error');
+    } finally {
+      input.value = '';
+    }
+  };
+  reader.onerror = () => {
+    showBackupStatus('Import failed: the selected file could not be read.', 'error');
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function clearAllLocalData() {
+  const confirmed = window.confirm('Clear all AI Trading Desk local data from this browser? This removes journal entries, notes, screenshots, theme, and demo session. Export a JSON backup first if you want to keep a copy.');
+  if (!confirmed) {
+    showBackupStatus('Clear all local data cancelled.', '');
+    return;
+  }
+  Object.keys(getAppLocalStorageData()).forEach((key) => localStorage.removeItem(key));
+  restoreUiFromLocalStorage();
+  showBackupStatus('All AI Trading Desk local data has been cleared from this browser.', 'success');
+}
+
+function showBackupStatus(message, type = '') {
+  const status = $('backupStatus');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.remove('success', 'error');
+  if (type) status.classList.add(type);
 }
 
 function csvEscape(value = '') {

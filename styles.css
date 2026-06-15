@@ -48,6 +48,7 @@ body {
 }
 
 button, input, select, textarea { font: inherit; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 input, select, textarea, button { min-width: 0; }
 button, a { transition: transform .18s ease, border-color .18s ease, background .18s ease, opacity .18s ease; }
 button:hover, .ghost-link:hover { transform: translateY(-1px); }
@@ -282,6 +283,15 @@ code { color: var(--accent); }
 }
 .journal-table th { color: var(--accent); background: rgba(255,255,255,.055); }
 .journal-table tbody tr:last-child td { border-bottom: 0; }
+.backup-status {
+  min-height: 22px;
+  margin: -2px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+.backup-status.success { color: var(--success); }
+.backup-status.error { color: var(--danger); }
 .delete-row { color: var(--danger); background: transparent; border: 0; cursor: pointer; font-weight: 900; }
 
 @media (max-width: 1180px) {

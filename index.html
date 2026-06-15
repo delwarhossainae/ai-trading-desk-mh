@@ -198,8 +198,14 @@
             <div class="journal-actions">
               <button id="exportCsv" class="ghost-btn small-btn" type="button">Export CSV</button>
               <button id="exportPdf" class="ghost-btn small-btn" type="button">Export PDF</button>
+              <button id="exportBackup" class="ghost-btn small-btn" type="button">Export JSON Backup</button>
+              <button id="importBackupTrigger" class="ghost-btn small-btn" type="button">Import JSON Backup</button>
+              <button id="clearLocalData" class="danger-btn small-btn" type="button">Clear All Local Data</button>
+              <input id="importBackupFile" class="visually-hidden" type="file" accept="application/json,.json" />
             </div>
           </div>
+
+          <p id="backupStatus" class="backup-status" role="status" aria-live="polite"></p>
 
           <form id="journalForm" class="journal-form">
             <label>Date <input id="jDate" type="datetime-local" /></label>
