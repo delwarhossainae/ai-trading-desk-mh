@@ -3,17 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Trading Desk MH | XAUUSD Multi-Timeframe Dashboard</title>
-  <meta name="description" content="AI Trading Desk MVP dashboard for TradingView chart analysis, economic calendar review, ChatGPT and Claude prompt generation, trade scorecard, and journal export." />
+  <title>MH AI Trading Workflow — AI Trading Desk MH</title>
+  <meta name="description" content="AI Trading Desk MH Semi-Automatic Pro MVP for static manual trading analysis, TradingView review, AI prompt generation, scorecard discipline, and local journal backup." />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <section id="loginView" class="login-view" aria-labelledby="loginTitle">
       <div class="login-card glass-card">
-        <p class="eyebrow">AI Trading Desk MVP</p>
-        <h1 id="loginTitle">Secure Local Access</h1>
-        <p class="muted">This MVP uses a browser-only demo login. Use proper server authentication before client/live account use.</p>
+        <p class="eyebrow">AI Trading Desk MH — Semi-Automatic Pro MVP</p>
+        <h1 id="loginTitle">Demo Local Access</h1>
+        <p class="muted"><strong>Demo only:</strong> this is not real authentication. It only stores a local browser session for the static GitHub Pages MVP.</p>
+        <div class="notice-box demo-notice">No API keys, broker credentials, OpenAI keys, Claude keys, or private tokens are required or stored by this page.</div>
         <form id="loginForm" class="form-grid">
           <label>
             Username
@@ -23,7 +24,7 @@
             Password
             <input id="loginPass" type="password" autocomplete="current-password" placeholder="Password" required />
           </label>
-          <button class="primary-btn" type="submit">Open Dashboard</button>
+          <button class="primary-btn" type="submit">Open Demo Dashboard</button>
           <p id="loginError" class="error-text" role="alert"></p>
         </form>
       </div>
@@ -32,15 +33,22 @@
     <section id="dashboardView" class="dashboard-view hidden" aria-label="Trading dashboard">
       <header class="topbar glass-card">
         <div>
-          <p class="eyebrow">Mohammad Hossain Trading Workflow</p>
-          <h1>AI Trading Desk</h1>
-          <p class="muted">Manual analysis cockpit for ChatGPT Plus, Claude Pro, TradingView, and economic-calendar confirmation.</p>
+          <p class="eyebrow">MH AI Trading Workflow</p>
+          <h1>AI Trading Desk MH — Semi-Automatic Pro MVP</h1>
+          <p class="muted">Static semi-automatic analysis cockpit for ChatGPT Plus, Claude Pro, TradingView, screenshots, macro notes, scorecard discipline, and local journal backup.</p>
         </div>
         <div class="topbar-actions">
+          <span id="autosaveIndicator" class="autosave-indicator" role="status" aria-live="polite">Autosave ready</span>
           <button id="themeToggle" class="ghost-btn" type="button">Light Mode</button>
           <button id="logoutBtn" class="danger-btn" type="button">Logout</button>
         </div>
       </header>
+
+      <div class="disclaimer-grid" aria-label="Important disclaimers">
+        <div class="notice-box"><strong>Educational disclaimer:</strong> AI Trading Desk MH is for educational journaling and manual analysis support only. It is not financial advice.</div>
+        <div class="notice-box risk-notice"><strong>Trading risk warning:</strong> Forex, commodities, crypto, and CFDs can cause significant losses. Never trade money you cannot afford to lose.</div>
+        <div class="notice-box"><strong>Local storage privacy:</strong> notes, screenshots, demo session, and journal data stay in this browser localStorage. Anyone with browser/device access may view them; clear local data on shared devices.</div>
+      </div>
 
       <main class="dashboard-grid">
         <section class="workspace-panel glass-card chart-panel" aria-labelledby="chartTitle">
@@ -72,7 +80,8 @@
             </label>
             <label>
               Current price / area
-              <input id="currentPrice" placeholder="Paste live price if available" />
+              <input id="currentPrice" placeholder="Auto-filled when available; editable manually" />
+              <span id="priceStatus" class="field-status" role="status" aria-live="polite">Select an asset to update live price.</span>
             </label>
           </div>
 
@@ -83,17 +92,32 @@
           </div>
         </section>
 
+        <section class="workspace-panel glass-card chart-upload-panel" aria-labelledby="chartUploadTitle">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Manual Chart Evidence</p>
+              <h2 id="chartUploadTitle">Screenshot Uploads & Chart Notes</h2>
+            </div>
+          </div>
+          <div class="risk-warning local-storage-warning">
+            <strong>Local-only warning:</strong> screenshots are stored locally only in this browser and may be lost if browser storage is cleared. Files are never uploaded to a server.
+          </div>
+          <div id="timeframeUploadGrid" class="timeframe-upload-grid" aria-label="Timeframe screenshot uploads and notes"></div>
+        </section>
+
         <aside class="workspace-panel glass-card calendar-panel" aria-labelledby="calendarTitle">
           <div class="section-head">
             <div>
               <p class="eyebrow">News Risk</p>
-              <h2 id="calendarTitle">Economic Calendar</h2>
+              <h2 id="calendarTitle">Investing.com Economic Calendar</h2>
             </div>
             <button id="reloadCalendar" class="ghost-btn small-btn" type="button">Reload</button>
           </div>
           <div id="calendarWidget" class="calendar-widget"></div>
-          <div class="risk-warning">
-            <strong>Rule:</strong> If high-impact USD/Fed/CPI/NFP/FOMC news is close, avoid entry before the event and wait for confirmation after volatility.
+          <p class="calendar-provider-note">Calendar data provided by Investing.com.</p>
+          <a id="calendarFallbackLink" class="ghost-link calendar-fallback-link" href="https://www.investing.com/economic-calendar/" target="_blank" rel="noopener noreferrer">Open Investing.com Economic Calendar</a>
+          <div class="risk-warning news-risk-box">
+            <strong>News risk warning:</strong> If high-impact USD/Fed/CPI/NFP/FOMC news is close, avoid entry before the event and wait for confirmation after volatility. Latest news/calendar data must be verified manually.
           </div>
         </aside>
 
@@ -101,22 +125,30 @@
           <div class="section-head">
             <div>
               <p class="eyebrow">Manual AI Workflow</p>
-              <h2 id="promptTitle">ChatGPT & Claude Prompt Generator</h2>
+              <h2 id="promptTitle">Semi-Automatic Pro Prompt Builder</h2>
             </div>
             <div class="segmented" role="tablist" aria-label="Prompt type">
-              <button id="chatgptTab" class="seg-btn active" type="button">ChatGPT</button>
-              <button id="claudeTab" class="seg-btn" type="button">Claude</button>
+              <button id="chatgptTab" class="seg-btn active" type="button" role="tab" aria-selected="true">ChatGPT Pro</button>
+              <button id="claudeTab" class="seg-btn" type="button" role="tab" aria-selected="false">Claude Opinion</button>
             </div>
           </div>
 
           <div class="prompt-form-grid">
             <label>
-              Chart screenshot notes / uploaded timeframe status
+              Timeframe notes / uploaded screenshot status
               <textarea id="chartNotes" rows="5" placeholder="Example: Monthly bullish, Weekly near supply, H4 CHoCH, M15 liquidity sweep below support..."></textarea>
             </label>
             <label>
-              Calendar events / macro notes
-              <textarea id="calendarNotes" rows="5" placeholder="Paste verified high-impact events, DXY, US10Y, Fed speakers, CPI/NFP/FOMC notes..."></textarea>
+              DXY notes
+              <textarea id="dxyNotes" rows="4" placeholder="Paste DXY trend, key levels, and dollar-strength context..."></textarea>
+            </label>
+            <label>
+              US bond yield notes
+              <textarea id="bondYieldNotes" rows="4" placeholder="Paste US10Y/US02Y yield direction, level reaction, and risk impact..."></textarea>
+            </label>
+            <label>
+              News / calendar notes
+              <textarea id="calendarNotes" rows="5" placeholder="Paste verified high-impact events, Fed speakers, CPI/NFP/FOMC notes..."></textarea>
             </label>
             <label>
               Geopolitical / sentiment notes
@@ -126,8 +158,8 @@
               Risk profile
               <select id="riskProfile">
                 <option value="Conservative: only score 8/10+ with 1:2 minimum R:R, avoid all high-impact news windows." selected>Conservative</option>
-                <option value="Balanced: allow watchlist setups at 7/10, entry only after confirmation." >Balanced</option>
-                <option value="Aggressive scalping: still no forced trades, but allow lower timeframe reaction entries after confirmation." >Aggressive scalping</option>
+                <option value="Balanced: watchlist only at 6–7/10, BUY/SELL allowed only at 8/10+ after confirmation." >Balanced</option>
+                <option value="Aggressive scalping: still no forced trades; BUY/SELL allowed only at 8/10+ after lower-timeframe confirmation." >Aggressive scalping</option>
               </select>
             </label>
           </div>
@@ -138,7 +170,7 @@
             <a id="openChatGPT" class="ghost-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
             <a id="openClaude" class="ghost-link" href="https://claude.ai/" target="_blank" rel="noopener noreferrer">Open Claude</a>
           </div>
-          <textarea id="promptOutput" class="prompt-output" rows="16" readonly placeholder="Generated professional trading-analysis prompt will appear here..."></textarea>
+          <textarea id="promptOutput" class="prompt-output" rows="16" readonly placeholder="Generated Semi-Automatic Pro prompt will appear here..."></textarea>
         </section>
 
         <section class="workspace-panel glass-card score-panel" aria-labelledby="scoreTitle">
@@ -159,6 +191,7 @@
           <div id="tradeDecision" class="decision-box no-trade">
             No Trade Setup — wait for better price action confirmation.
           </div>
+          <div id="noTradeWarning" class="no-trade-warning">No Trade Setup warning: BUY/SELL remains blocked until the score is 8/10+ and confirmation, invalidation, risk management, and news-risk checks are complete.</div>
           <ul class="rules-list">
             <li>0–5 = No Trade</li>
             <li>6–7 = Watch only</li>
@@ -177,38 +210,77 @@
             <div class="journal-actions">
               <button id="exportCsv" class="ghost-btn small-btn" type="button">Export CSV</button>
               <button id="exportPdf" class="ghost-btn small-btn" type="button">Export PDF</button>
+              <button id="exportBackup" class="ghost-btn small-btn" type="button">Export JSON Backup</button>
+              <button id="importBackupTrigger" class="ghost-btn small-btn" type="button">Import JSON Backup</button>
+              <button id="clearLocalData" class="danger-btn small-btn" type="button">Clear All Local Data</button>
+              <input id="importBackupFile" class="visually-hidden" type="file" accept="application/json,.json" />
             </div>
           </div>
 
+          <p id="backupStatus" class="backup-status" role="status" aria-live="polite"></p>
+
           <form id="journalForm" class="journal-form">
-            <input id="jDate" type="datetime-local" />
-            <select id="jAsset"></select>
-            <select id="jType">
-              <option>Watch Only</option>
-              <option>Buy</option>
-              <option>Sell</option>
-              <option>No Trade</option>
-            </select>
-            <input id="jEntry" placeholder="Entry zone" />
-            <input id="jSl" placeholder="Stop loss" />
-            <input id="jTp" placeholder="TP1 / TP2 / TP3" />
-            <input id="jScore" placeholder="Score /10" />
-            <select id="jResult">
-              <option>Pending</option>
-              <option>Win</option>
-              <option>Loss</option>
-              <option>Break Even</option>
-              <option>Skipped</option>
-            </select>
-            <textarea id="jNotes" rows="3" placeholder="Reason, confirmation, invalidation, news risk..."></textarea>
+            <label>Date <input id="jDate" type="datetime-local" /></label>
+            <label>Symbol <select id="jAsset"></select></label>
+            <label>Trade type
+              <select id="jType">
+                <option>WATCH</option>
+                <option>BUY</option>
+                <option>SELL</option>
+                <option>NO TRADE</option>
+              </select>
+            </label>
+            <label>Bias <input id="jBias" placeholder="Bullish / Bearish / Neutral" /></label>
+            <label>Score /10 <input id="jScore" type="number" min="0" max="10" step="0.5" placeholder="8" /></label>
+            <label>Entry zone <input id="jEntry" placeholder="Entry zone" /></label>
+            <label>Stop loss <input id="jSl" placeholder="Stop loss" /></label>
+            <label>TP1 <input id="jTp1" placeholder="First target" /></label>
+            <label>TP2 <input id="jTp2" placeholder="Second target" /></label>
+            <label>TP3 <input id="jTp3" placeholder="Third target" /></label>
+            <label>Risk-reward <input id="jRr" placeholder="Example: 1:2" /></label>
+            <label>Result
+              <select id="jResult">
+                <option>Pending</option>
+                <option>Win</option>
+                <option>Loss</option>
+                <option>Breakeven</option>
+              </select>
+            </label>
+            <label>Profit/loss notes <textarea id="jProfitNotes" rows="3" placeholder="P/L amount, partials, management notes..."></textarea></label>
+            <label>Screenshot names <textarea id="jScreenshots" rows="3" placeholder="Screenshot file names or links saved elsewhere..."></textarea></label>
+            <label>Timeframe notes <textarea id="jTimeframeNotes" rows="3" placeholder="Monthly, Weekly, Daily, H4, H1, M15/M5 context..."></textarea></label>
+            <label>AI decision <textarea id="jAiDecision" rows="3" placeholder="AI decision, confirmation, invalidation, risk/news warning..."></textarea></label>
+            <label class="journal-notes-wide">Manual notes <textarea id="jNotes" rows="3" placeholder="Personal notes, psychology, execution review..."></textarea></label>
             <button class="primary-btn" type="submit">Add Journal Entry</button>
           </form>
+
+          <div class="journal-filters" aria-label="Journal filters">
+            <label>Symbol <select id="filterSymbol"><option value="">All symbols</option></select></label>
+            <label>Trade type
+              <select id="filterType">
+                <option value="">All trade types</option>
+                <option>BUY</option><option>SELL</option><option>WATCH</option><option>NO TRADE</option>
+              </select>
+            </label>
+            <label>Min score <input id="filterScoreMin" type="number" min="0" max="10" step="0.5" placeholder="0" /></label>
+            <label>Max score <input id="filterScoreMax" type="number" min="0" max="10" step="0.5" placeholder="10" /></label>
+            <label>Result
+              <select id="filterResult">
+                <option value="">All results</option>
+                <option>Pending</option><option>Win</option><option>Loss</option><option>Breakeven</option>
+              </select>
+            </label>
+            <label>Date from <input id="filterDateFrom" type="date" /></label>
+            <label>Date to <input id="filterDateTo" type="date" /></label>
+            <label class="filter-search">Search notes <input id="filterNotes" placeholder="AI decision, manual notes, screenshots..." /></label>
+            <button id="clearJournalFilters" class="ghost-btn small-btn" type="button">Clear Filters</button>
+          </div>
 
           <div class="journal-table-wrap">
             <table class="journal-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>Asset</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>Score</th><th>Result</th><th>Notes</th><th></th>
+                  <th>Date</th><th>Symbol</th><th>Type</th><th>Bias</th><th>Score</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>R:R</th><th>Result</th><th>AI Decision</th><th>Manual Notes</th><th></th>
                 </tr>
               </thead>
               <tbody id="journalBody"></tbody>
@@ -218,6 +290,7 @@
       </main>
     </section>
   </div>
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
   <script src="app.js"></script>
 </body>
