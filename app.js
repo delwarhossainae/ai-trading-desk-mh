@@ -159,7 +159,7 @@ function loadTradingViewChart() {
     hide_volume: false,
     hotlist: false,
     save_image: true,
-    withdateranges: true,
+    withdateranges: window.matchMedia('(min-width: 430px)').matches,
     backgroundColor: theme === 'dark' ? '#0b1022' : '#ffffff',
     gridColor: theme === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.08)',
     studies: [],
@@ -186,7 +186,7 @@ function loadCalendarWidget() {
     countryFilter: "us,eu,gb,jp,ca,au,nz,ch,cn",
     importanceFilter: "0,1",
     width: "100%",
-    height: "580"
+    height: "100%"
   });
   script.onerror = () => {
     container.innerHTML = '<div class="widget-fallback" role="status">Economic calendar could not load. Latest news/calendar data could not be verified here; check TradingView or your broker calendar before trading.</div>';
@@ -350,7 +350,7 @@ function addJournalEntry(event) {
   event.preventDefault();
   const asset = assets.find(item => item.tv === $('jAsset').value) || assets[0];
   const entry = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    id: createId(),
     date: $('jDate').value,
     asset: asset.short,
     type: $('jType').value,
@@ -378,19 +378,25 @@ function renderJournal() {
   }
   body.innerHTML = journal.map((row) => `
     <tr>
-      <td>${escapeHtml(row.date || '')}</td>
-      <td>${escapeHtml(row.asset || '')}</td>
-      <td>${escapeHtml(row.type || '')}</td>
-      <td>${escapeHtml(row.entry || '')}</td>
-      <td>${escapeHtml(row.sl || '')}</td>
-      <td>${escapeHtml(row.tp || '')}</td>
-      <td>${escapeHtml(row.score || '')}</td>
-      <td>${escapeHtml(row.result || '')}</td>
-      <td>${escapeHtml(row.notes || '')}</td>
-      <td><button class="delete-row" type="button" onclick="deleteJournalEntry('${row.id}')">Delete</button></td>
+      <td data-label="Date">${escapeHtml(row.date || '')}</td>
+      <td data-label="Asset">${escapeHtml(row.asset || '')}</td>
+      <td data-label="Type">${escapeHtml(row.type || '')}</td>
+      <td data-label="Entry">${escapeHtml(row.entry || '')}</td>
+      <td data-label="SL">${escapeHtml(row.sl || '')}</td>
+      <td data-label="TP">${escapeHtml(row.tp || '')}</td>
+      <td data-label="Score">${escapeHtml(row.score || '')}</td>
+      <td data-label="Result">${escapeHtml(row.result || '')}</td>
+      <td data-label="Notes">${escapeHtml(row.notes || '')}</td>
+      <td data-label="Action"><button class="delete-row" type="button" data-delete-id="${escapeHtml(row.id)}">Delete</button></td>
     </tr>
   `).join('');
 }
+
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-delete-id]');
+  if (!button) return;
+  deleteJournalEntry(button.dataset.deleteId);
+});
 
 function deleteJournalEntry(id) {
   setJournal(getJournal().filter((row) => row.id !== id));
@@ -435,6 +441,13 @@ function downloadFile(filename, content, type) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function createId() {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function todayStamp() {
