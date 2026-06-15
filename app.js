@@ -1,5 +1,4 @@
-const DEMO_USER = "admin";
-const DEMO_PASS = "mhdesk";
+const DEMO_LOGIN_NOTE = "Demo-only local session; not real authentication.";
 
 const assets = [
   { label: "XAUUSD / Gold", tv: "OANDA:XAUUSD", short: "XAUUSD" },
@@ -150,12 +149,16 @@ function bindLocalAnalysisStorage() {
   analysisFieldIds.forEach((id) => {
     const field = $(id);
     if (!field) return;
-    field.addEventListener('input', () => localStorage.setItem(`mh_analysis_${id}`, field.value));
+    field.addEventListener('input', () => {
+      localStorage.setItem(`mh_analysis_${id}`, sanitizePlainText(field.value, 12000));
+      showAutosave();
+    });
   });
 
   document.querySelectorAll('[data-timeframe-notes]').forEach((field) => {
     field.addEventListener('input', () => {
-      localStorage.setItem(`mh_timeframe_notes_${field.dataset.timeframeNotes}`, field.value);
+      localStorage.setItem(`mh_timeframe_notes_${field.dataset.timeframeNotes}`, sanitizePlainText(field.value, 12000));
+      showAutosave();
       syncChartNotesSummary();
     });
   });
@@ -199,6 +202,8 @@ function handleScreenshotUpload(event) {
       localStorage.setItem(`mh_timeframe_screenshot_name_${key}`, file.name);
       renderScreenshotPreview(key);
       syncChartNotesSummary();
+      showToast('Screenshot saved locally.', 'success');
+      showAutosave();
     } catch (error) {
       window.alert('This screenshot could not be saved locally. Browser storage may be full; try a smaller image.');
     }
@@ -225,6 +230,8 @@ function clearTimeframeEvidence(key) {
   if (notes) notes.value = '';
   if (upload) upload.value = '';
   renderScreenshotPreview(key);
+  showToast('Timeframe evidence cleared.', 'success');
+  showAutosave();
   syncChartNotesSummary();
 }
 
@@ -232,7 +239,7 @@ function timeframeEvidenceSummary() {
   return manualTimeframes.map(({ key, label }) => {
     const filename = localStorage.getItem(`mh_timeframe_screenshot_name_${key}`);
     const hasScreenshot = filename ? `Uploaded locally (${filename})` : 'Missing — user must manually upload this screenshot to the AI chat before exact level analysis.';
-    const notes = ($(`${key}Notes`)?.value || '').trim() || 'No notes provided.';
+    const notes = sanitizePlainText($(`${key}Notes`)?.value || '', 12000) || 'No notes provided.';
     return `${label} screenshot: ${hasScreenshot}\n${label} notes: ${notes}`;
   }).join('\n\n');
 }
@@ -243,7 +250,7 @@ function timeframePromptEvidence() {
     const screenshotReference = filename
       ? `${filename} — uploaded locally in this browser; user must attach this ${label} screenshot manually to the AI chat.`
       : `Missing ${label} screenshot — do not invent exact levels from this timeframe.`;
-    const notes = ($(`${key}Notes`)?.value || '').trim() || 'No notes provided for this timeframe.';
+    const notes = sanitizePlainText($(`${key}Notes`)?.value || '', 12000) || 'No notes provided for this timeframe.';
     return `${label}:\n- Notes: ${notes}\n- Screenshot reference: ${screenshotReference}`;
   }).join('\n\n');
 }
@@ -255,21 +262,22 @@ function syncChartNotesSummary() {
   const summary = timeframeEvidenceSummary();
   if (!existing || existing.includes('screenshot:') || existing.includes('notes:')) {
     chartNotes.value = summary;
-    localStorage.setItem('mh_analysis_chartNotes', summary);
+    localStorage.setItem('mh_analysis_chartNotes', sanitizePlainText(summary, 12000));
   }
 }
 
 function onLogin(event) {
   event.preventDefault();
-  const user = $('loginUser').value.trim();
+  const user = sanitizePlainText($('loginUser').value, 80);
   const pass = $('loginPass').value.trim();
-  if (user === DEMO_USER && pass === DEMO_PASS) {
+  if (user && pass) {
     localStorage.setItem('mh_session', 'active');
+    localStorage.setItem('mh_session_note', DEMO_LOGIN_NOTE);
     $('loginError').textContent = '';
     showDashboard();
     return;
   }
-  $('loginError').textContent = 'Invalid username or password.';
+  $('loginError').textContent = 'Enter any username and password to open the demo-only local dashboard.';
 }
 
 function showDashboard() {
@@ -373,18 +381,20 @@ function setPromptType(type) {
   activePromptType = type;
   $('chatgptTab').classList.toggle('active', type === 'chatgpt');
   $('claudeTab').classList.toggle('active', type === 'claude');
+  $('chatgptTab').setAttribute('aria-selected', String(type === 'chatgpt'));
+  $('claudeTab').setAttribute('aria-selected', String(type === 'claude'));
   generatePrompt();
 }
 
 function generatePrompt() {
   const asset = selectedAsset();
   const interval = timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value;
-  const currentPrice = $('currentPrice').value.trim() || 'Not provided — do not invent exact levels.';
+  const currentPrice = sanitizePlainText($('currentPrice').value, 600) || 'Not provided — do not invent exact levels.';
   const timeframeEvidence = timeframePromptEvidence();
-  const dxyNotes = $('dxyNotes').value.trim() || 'No DXY notes provided — state that DXY context is missing and do not infer dollar strength.';
-  const bondYieldNotes = $('bondYieldNotes').value.trim() || 'No US bond yield notes provided — state that yield context is missing and do not infer yield pressure.';
-  const calendarNotes = $('calendarNotes').value.trim() || 'Latest economic calendar data not pasted here. Say: Latest news/calendar data could not be verified.';
-  const newsNotes = $('newsNotes').value.trim() || 'No verified geopolitical/sentiment notes pasted — state that geopolitical context is missing.';
+  const dxyNotes = sanitizePlainText($('dxyNotes').value, 4000) || 'No DXY notes provided — state that DXY context is missing and do not infer dollar strength.';
+  const bondYieldNotes = sanitizePlainText($('bondYieldNotes').value, 4000) || 'No US bond yield notes provided — state that yield context is missing and do not infer yield pressure.';
+  const calendarNotes = sanitizePlainText($('calendarNotes').value, 4000) || 'Latest economic calendar data not pasted here. Say: Latest news/calendar data could not be verified.';
+  const newsNotes = sanitizePlainText($('newsNotes').value, 4000) || 'No verified geopolitical/sentiment notes pasted — state that geopolitical context is missing.';
   const risk = $('riskProfile').value;
 
   const sharedPromptBody = `SEMI-AUTOMATIC PRO INPUTS
@@ -501,6 +511,7 @@ async function copyPrompt() {
   try {
     await navigator.clipboard.writeText($('promptOutput').value);
     $('copyPrompt').textContent = 'Copied!';
+    showToast('Prompt copied to clipboard.', 'success');
     setTimeout(() => ($('copyPrompt').textContent = 'Copy Prompt'), 1200);
   } catch (error) {
     $('promptOutput').select();
@@ -517,21 +528,28 @@ function calculateScore() {
   });
   $('scoreBadge').textContent = `${total.toFixed(total % 1 === 0 ? 0 : 1)} / 10`;
   const box = $('tradeDecision');
-  box.classList.remove('no-trade', 'watch', 'valid');
+  const badge = $('scoreBadge');
+  badge.classList.remove('score-no-trade', 'score-watch', 'score-valid', 'score-strong');
+  box.classList.remove('no-trade', 'watch', 'valid', 'strong');
   if (total < 6) {
     box.classList.add('no-trade');
+    badge.classList.add('score-no-trade');
     box.textContent = 'No Trade Setup — wait for better price action confirmation.';
   } else if (total < 8) {
     box.classList.add('watch');
+    badge.classList.add('score-watch');
     box.textContent = 'Watch Only — setup is not strong enough for BUY/SELL. Wait for M15/M5 confirmation.';
   } else if (total === 8) {
     box.classList.add('valid');
+    badge.classList.add('score-valid');
     box.textContent = 'Valid Setup — entry allowed only after trigger candle, retest, news-risk check, and 1:2+ R:R.';
   } else if (total === 9) {
-    box.classList.add('valid');
+    box.classList.add('strong');
+    badge.classList.add('score-strong');
     box.textContent = 'Strong Setup — still wait for exact entry trigger and invalidation confirmation.';
   } else {
-    box.classList.add('valid');
+    box.classList.add('strong');
+    badge.classList.add('score-strong');
     box.textContent = 'Rare A+ Setup — execute only with fixed risk and no news conflict.';
   }
 }
@@ -570,23 +588,23 @@ function normalizeResult(result = '') {
 function normalizeJournalEntry(row = {}) {
   return {
     id: row.id || createId(),
-    date: row.date || '',
-    asset: row.asset || row.symbol || '',
+    date: sanitizePlainText(row.date || '', 40),
+    asset: sanitizePlainText(row.asset || row.symbol || '', 40),
     type: normalizeTradeType(row.type),
-    bias: row.bias || '',
-    score: row.score || '',
-    entry: row.entry || '',
-    sl: row.sl || row.stopLoss || '',
-    tp1: row.tp1 || row.tp || '',
-    tp2: row.tp2 || '',
-    tp3: row.tp3 || '',
-    rr: row.rr || row.riskReward || '',
+    bias: sanitizePlainText(row.bias || '', 160),
+    score: sanitizePlainText(row.score || '', 160),
+    entry: sanitizePlainText(row.entry || '', 160),
+    sl: sanitizePlainText(row.sl || row.stopLoss || '', 160),
+    tp1: sanitizePlainText(row.tp1 || row.tp || '', 160),
+    tp2: sanitizePlainText(row.tp2 || '', 160),
+    tp3: sanitizePlainText(row.tp3 || '', 160),
+    rr: sanitizePlainText(row.rr || row.riskReward || '', 160),
     result: normalizeResult(row.result),
-    profitNotes: row.profitNotes || '',
-    screenshots: row.screenshots || '',
-    timeframeNotes: row.timeframeNotes || '',
-    aiDecision: row.aiDecision || '',
-    notes: row.notes || row.manualNotes || ''
+    profitNotes: sanitizePlainText(row.profitNotes || '', 4000),
+    screenshots: sanitizePlainText(row.screenshots || '', 4000),
+    timeframeNotes: sanitizePlainText(row.timeframeNotes || '', 4000),
+    aiDecision: sanitizePlainText(row.aiDecision || '', 4000),
+    notes: sanitizePlainText(row.notes || row.manualNotes || '', 4000)
   };
 }
 
@@ -618,6 +636,8 @@ function addJournalEntry(event) {
   $('journalForm').reset();
   setDefaultJournalDate();
   $('jAsset').value = $('assetSelect').value;
+  showToast('Journal entry saved locally.', 'success');
+  showAutosave();
   renderJournal();
 }
 
@@ -629,7 +649,7 @@ function getFilteredJournal() {
   const result = $('filterResult').value;
   const from = $('filterDateFrom').value;
   const to = $('filterDateTo').value;
-  const notes = $('filterNotes').value.trim().toLowerCase();
+  const notes = sanitizePlainText($('filterNotes').value, 400).toLowerCase();
 
   return getJournal().map(normalizeJournalEntry).filter((row) => {
     const score = parseFloat(row.score);
@@ -650,16 +670,16 @@ function renderJournal() {
   const body = $('journalBody');
   const journal = getFilteredJournal();
   if (!journal.length) {
-    body.innerHTML = '<tr><td colspan="15" class="muted">No journal entries match the current filters. Add your first watchlist or trade decision.</td></tr>';
+    body.innerHTML = '<tr><td colspan="15" class="empty-state"><strong>No journal entries yet.</strong><span>Add a WATCH, BUY, SELL, or NO TRADE note to build your local trading review history.</span></td></tr>';
     return;
   }
   body.innerHTML = journal.map((row) => `
     <tr>
       <td data-label="Date">${escapeHtml(row.date)}</td>
       <td data-label="Symbol">${escapeHtml(row.asset)}</td>
-      <td data-label="Type">${escapeHtml(row.type)}</td>
+      <td data-label="Type">${statusBadge(row.type)}</td>
       <td data-label="Bias">${escapeHtml(row.bias)}</td>
-      <td data-label="Score">${escapeHtml(row.score)}</td>
+      <td data-label="Score"><span class="score-chip ${scoreClass(row.score)}">${escapeHtml(row.score || '—')}</span></td>
       <td data-label="Entry">${escapeHtml(row.entry)}</td>
       <td data-label="SL">${escapeHtml(row.sl)}</td>
       <td data-label="TP1">${escapeHtml(row.tp1)}</td>
@@ -692,6 +712,8 @@ document.addEventListener('click', (event) => {
 
 function deleteJournalEntry(id) {
   setJournal(getJournal().filter((row) => row.id !== id));
+  showToast('Journal entry deleted.', 'success');
+  showAutosave();
   renderJournal();
 }
 window.deleteJournalEntry = deleteJournalEntry;
@@ -706,6 +728,7 @@ function exportCsv() {
   const rows = journal.map((row) => [row.date,row.asset,row.type,row.bias,row.score,row.entry,row.sl,row.tp1,row.tp2,row.tp3,row.rr,row.result,row.profitNotes,row.screenshots,row.timeframeNotes,row.aiDecision,row.notes]);
   const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
   downloadFile(`ai-trading-journal-${todayStamp()}.csv`, csv, 'text/csv;charset=utf-8');
+  showToast('CSV export started.', 'success');
 }
 
 function exportPdf() {
@@ -716,8 +739,10 @@ function exportPdf() {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     window.alert('PDF export was blocked by the browser. Please allow pop-ups for this site and try Export PDF again.');
+    showToast('PDF export blocked by browser.', 'error');
     return;
   }
+  showToast('PDF/print export opened.', 'success');
   printWindow.document.write(`<!doctype html><html><head><title>AI Trading Journal</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}th{background:#f3f4f6}.muted{color:#666}</style></head><body><h1>AI Trading Journal</h1><p class="muted">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Date</th><th>Symbol</th><th>Type</th><th>Bias</th><th>Score</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>R:R</th><th>Result</th><th>AI Decision</th><th>Manual Notes</th></tr></thead><tbody>${htmlRows || '<tr><td colspan="14">No entries.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
   printWindow.document.close();
 }
@@ -744,6 +769,7 @@ function exportLocalBackup() {
     };
     downloadFile(`ai-trading-desk-backup-${todayStamp()}.json`, JSON.stringify(backup, null, 2), 'application/json;charset=utf-8');
     showBackupStatus('JSON backup exported successfully.', 'success');
+    showToast('JSON backup exported.', 'success');
   } catch (error) {
     showBackupStatus('Backup export failed. Please try again or check browser storage access.', 'error');
   }
@@ -765,6 +791,9 @@ function validateBackupPayload(payload) {
   Object.entries(payload.data).forEach(([key, value]) => {
     if (!key.startsWith('mh_')) {
       throw new Error(`Backup contains unsupported key: ${key}`);
+    }
+    if (String(key).length > 120 || /(?:token|secret|api[_-]?key|password|passwd|private[_-]?key)/i.test(key)) {
+      throw new Error(`Backup contains a sensitive or unsupported key name: ${key}`);
     }
     if (typeof value !== 'string' && value !== null) {
       throw new Error(`Backup value for ${key} must be a string or null.`);
@@ -812,6 +841,8 @@ function importLocalBackup(event) {
       });
       restoreUiFromLocalStorage();
       showBackupStatus('JSON backup imported successfully. Local app data was restored.', 'success');
+      showToast('JSON backup imported.', 'success');
+      showAutosave();
     } catch (error) {
       showBackupStatus(`Import failed: ${error.message}`, 'error');
     } finally {
@@ -839,7 +870,7 @@ function clearAllLocalData() {
 function showBackupStatus(message, type = '') {
   const status = $('backupStatus');
   if (!status) return;
-  status.textContent = message;
+  status.textContent = sanitizePlainText(message, 240);
   status.classList.remove('success', 'error');
   if (type) status.classList.add(type);
 }
@@ -870,6 +901,51 @@ function createId() {
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function statusBadge(type = '') {
+  const normalized = normalizeTradeType(type);
+  const className = normalized.toLowerCase().replace(/\s+/g, '-');
+  return `<span class="status-badge ${className}">${escapeHtml(normalized)}</span>`;
+}
+
+function scoreClass(score) {
+  const value = parseFloat(score);
+  if (Number.isNaN(value) || value <= 5) return 'score-no-trade';
+  if (value < 8) return 'score-watch';
+  if (value < 9) return 'score-valid';
+  return 'score-strong';
+}
+
+function sanitizePlainText(value = '', maxLength = 4000) {
+  return String(value)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/<\/?script[^>]*>/gi, '')
+    .slice(0, maxLength)
+    .trim();
+}
+
+function showAutosave() {
+  const indicator = $('autosaveIndicator');
+  if (!indicator) return;
+  indicator.textContent = `Autosaved ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  indicator.classList.add('saved');
+  window.clearTimeout(showAutosave.timer);
+  showAutosave.timer = window.setTimeout(() => indicator.classList.remove('saved'), 1600);
+}
+
+function showToast(message, type = 'success') {
+  const region = $('toastRegion');
+  if (!region) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = sanitizePlainText(message, 180);
+  region.appendChild(toast);
+  window.setTimeout(() => toast.classList.add('show'), 20);
+  window.setTimeout(() => {
+    toast.classList.remove('show');
+    window.setTimeout(() => toast.remove(), 220);
+  }, 3200);
 }
 
 function escapeHtml(value = '') {
