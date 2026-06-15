@@ -12,8 +12,9 @@
     <section id="loginView" class="login-view" aria-labelledby="loginTitle">
       <div class="login-card glass-card">
         <p class="eyebrow">AI Trading Desk MVP</p>
-        <h1 id="loginTitle">Secure Local Access</h1>
-        <p class="muted">This MVP uses a browser-only demo login. Use proper server authentication before client/live account use.</p>
+        <h1 id="loginTitle">Demo Local Access</h1>
+        <p class="muted"><strong>Demo only:</strong> this is not real authentication. It only stores a local browser session for the static GitHub Pages MVP.</p>
+        <div class="notice-box demo-notice">No API keys, broker credentials, OpenAI keys, Claude keys, or private tokens are required or stored by this page.</div>
         <form id="loginForm" class="form-grid">
           <label>
             Username
@@ -23,7 +24,7 @@
             Password
             <input id="loginPass" type="password" autocomplete="current-password" placeholder="Password" required />
           </label>
-          <button class="primary-btn" type="submit">Open Dashboard</button>
+          <button class="primary-btn" type="submit">Open Demo Dashboard</button>
           <p id="loginError" class="error-text" role="alert"></p>
         </form>
       </div>
@@ -37,10 +38,17 @@
           <p class="muted">Manual analysis cockpit for ChatGPT Plus, Claude Pro, TradingView, and economic-calendar confirmation.</p>
         </div>
         <div class="topbar-actions">
+          <span id="autosaveIndicator" class="autosave-indicator" role="status" aria-live="polite">Autosave ready</span>
           <button id="themeToggle" class="ghost-btn" type="button">Light Mode</button>
           <button id="logoutBtn" class="danger-btn" type="button">Logout</button>
         </div>
       </header>
+
+      <div class="disclaimer-grid" aria-label="Important disclaimers">
+        <div class="notice-box"><strong>Educational disclaimer:</strong> AI Trading Desk MH is for educational journaling and manual analysis support only. It is not financial advice.</div>
+        <div class="notice-box risk-notice"><strong>Trading risk warning:</strong> Forex, commodities, crypto, and CFDs can cause significant losses. Never trade money you cannot afford to lose.</div>
+        <div class="notice-box"><strong>Local storage privacy:</strong> notes, screenshots, demo session, and journal data stay in this browser localStorage. Anyone with browser/device access may view them; clear local data on shared devices.</div>
+      </div>
 
       <main class="dashboard-grid">
         <section class="workspace-panel glass-card chart-panel" aria-labelledby="chartTitle">
@@ -105,8 +113,8 @@
             <button id="reloadCalendar" class="ghost-btn small-btn" type="button">Reload</button>
           </div>
           <div id="calendarWidget" class="calendar-widget"></div>
-          <div class="risk-warning">
-            <strong>Rule:</strong> If high-impact USD/Fed/CPI/NFP/FOMC news is close, avoid entry before the event and wait for confirmation after volatility.
+          <div class="risk-warning news-risk-box">
+            <strong>News risk warning:</strong> If high-impact USD/Fed/CPI/NFP/FOMC news is close, avoid entry before the event and wait for confirmation after volatility. Latest news/calendar data must be verified manually.
           </div>
         </aside>
 
@@ -117,8 +125,8 @@
               <h2 id="promptTitle">Semi-Automatic Pro Prompt Builder</h2>
             </div>
             <div class="segmented" role="tablist" aria-label="Prompt type">
-              <button id="chatgptTab" class="seg-btn active" type="button">ChatGPT Pro</button>
-              <button id="claudeTab" class="seg-btn" type="button">Claude Opinion</button>
+              <button id="chatgptTab" class="seg-btn active" type="button" role="tab" aria-selected="true">ChatGPT Pro</button>
+              <button id="claudeTab" class="seg-btn" type="button" role="tab" aria-selected="false">Claude Opinion</button>
             </div>
           </div>
 
@@ -180,6 +188,7 @@
           <div id="tradeDecision" class="decision-box no-trade">
             No Trade Setup — wait for better price action confirmation.
           </div>
+          <div id="noTradeWarning" class="no-trade-warning">No Trade Setup warning: BUY/SELL remains blocked until the score is 8/10+ and confirmation, invalidation, risk management, and news-risk checks are complete.</div>
           <ul class="rules-list">
             <li>0–5 = No Trade</li>
             <li>6–7 = Watch only</li>
@@ -278,6 +287,7 @@
       </main>
     </section>
   </div>
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
   <script src="app.js"></script>
 </body>
