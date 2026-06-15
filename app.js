@@ -94,7 +94,7 @@ function onLogin(event) {
     showDashboard();
     return;
   }
-  $('loginError').textContent = 'Invalid demo login. Use admin / mhdesk or update app.js.';
+  $('loginError').textContent = 'Invalid username or password.';
 }
 
 function showDashboard() {
