@@ -178,6 +178,15 @@ code { color: var(--accent); }
   border-radius: 20px;
   background: rgba(0,0,0,.18);
 }
+.widget-fallback {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.5;
+}
 .prompt-panel, .journal-panel { grid-column: 1 / -1; }
 .prompt-form-grid { grid-template-columns: 1.2fr 1fr 1fr .7fr; align-items: start; }
 .prompt-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
