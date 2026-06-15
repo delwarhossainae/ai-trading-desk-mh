@@ -33,6 +33,8 @@ html[data-theme="light"] {
 }
 
 * { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: clip; }
+img, iframe, canvas, svg, video { max-width: 100%; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
@@ -46,12 +48,13 @@ body {
 }
 
 button, input, select, textarea { font: inherit; }
+input, select, textarea, button { min-width: 0; }
 button, a { transition: transform .18s ease, border-color .18s ease, background .18s ease, opacity .18s ease; }
 button:hover, .ghost-link:hover { transform: translateY(-1px); }
 button:active { transform: translateY(0); }
 
 .hidden { display: none !important; }
-.app-shell { width: min(100%, 1740px); margin: 0 auto; padding: 18px; }
+.app-shell { width: min(100%, 1740px); margin: 0 auto; padding: clamp(8px, 2vw, 18px); }
 .glass-card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -83,10 +86,12 @@ h2 { font-size: clamp(20px, 2vw, 28px); }
 label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 700; }
 input, select, textarea {
   width: 100%;
+  max-width: 100%;
   border: 1px solid var(--line);
   background: rgba(255,255,255,.08);
   color: var(--text);
   border-radius: 14px;
+  min-height: 44px;
   padding: 12px 13px;
   outline: none;
 }
@@ -99,7 +104,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
+  min-height: 44px;
   border-radius: 14px;
   border: 1px solid transparent;
   padding: 10px 15px;
@@ -170,6 +175,17 @@ code { color: var(--accent); }
   border: 1px solid var(--line);
   border-radius: 20px;
   background: rgba(0,0,0,.18);
+}
+.tv-box .tradingview-widget-container,
+.tv-box .tradingview-widget-container__widget,
+.calendar-widget .tradingview-widget-container,
+.calendar-widget .tradingview-widget-container__widget {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.tv-box .tradingview-widget-container__widget,
+.calendar-widget .tradingview-widget-container__widget {
+  height: calc(100% - 32px) !important;
 }
 .calendar-widget {
   height: 610px;
@@ -261,13 +277,46 @@ code { color: var(--accent); }
   .prompt-form-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 760px) {
-  .app-shell { padding: 10px; }
-  .topbar, .section-head { align-items: flex-start; flex-direction: column; }
-  .topbar-actions, .journal-actions { justify-content: flex-start; }
+  .topbar, .section-head { align-items: stretch; flex-direction: column; }
+  .topbar-actions, .journal-actions, .prompt-actions { justify-content: flex-start; width: 100%; }
+  .topbar-actions > *, .journal-actions > *, .prompt-actions > * { flex: 1 1 140px; }
   .control-grid, .prompt-form-grid, .journal-form { grid-template-columns: 1fr; }
   .journal-form textarea { grid-column: span 1; }
-  .tv-box { height: 520px; }
-  .calendar-widget { height: 560px; }
+  .tv-box { height: clamp(430px, 72vh, 560px); border-radius: 16px; }
+  .calendar-widget { height: clamp(460px, 70vh, 560px); border-radius: 16px; }
   .workspace-panel, .topbar, .login-card { border-radius: 18px; padding: 15px; }
-  h1 { font-size: 32px; }
+  h1 { font-size: clamp(28px, 9vw, 34px); }
+  h2 { font-size: clamp(19px, 6vw, 24px); }
+  .eyebrow { letter-spacing: .1em; }
+  .score-grid label { grid-template-columns: 1fr; }
+  .journal-table-wrap { overflow: visible; border: 0; }
+  .journal-table { min-width: 0; border-collapse: separate; border-spacing: 0 12px; }
+  .journal-table thead { display: none; }
+  .journal-table, .journal-table tbody, .journal-table tr, .journal-table td { display: block; width: 100%; }
+  .journal-table tr { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.055); overflow: hidden; }
+  .journal-table td { display: grid; grid-template-columns: minmax(86px, 34%) minmax(0, 1fr); gap: 10px; border-bottom: 1px solid var(--line); padding: 10px 12px; overflow-wrap: anywhere; }
+  .journal-table td::before { content: attr(data-label); color: var(--accent); font-weight: 900; }
+  .journal-table td:last-child { border-bottom: 0; }
+  .delete-row { min-height: 40px; justify-content: center; border: 1px solid rgba(255, 107, 122, .35); border-radius: 12px; padding: 8px 10px; background: rgba(255, 107, 122, .10); }
+}
+
+@media (max-width: 430px) {
+  body { background-attachment: scroll; }
+  .app-shell { padding: 8px; }
+  .workspace-panel, .topbar, .login-card { padding: 12px; border-radius: 16px; }
+  .glass-card { box-shadow: 0 18px 48px rgba(0, 0, 0, .28); }
+  .primary-btn, .ghost-btn, .danger-btn, .ghost-link { width: 100%; padding-inline: 12px; }
+  .segmented { width: 100%; }
+  .seg-btn { flex: 1; min-height: 40px; }
+  .prompt-output { min-height: 280px; font-size: 12px; }
+  .indicator-note, .risk-warning, .decision-box { font-size: 13px; }
+  .tv-box { height: 430px; }
+  .calendar-widget { height: 500px; }
+}
+
+@media (max-width: 340px) {
+  .app-shell { padding: 6px; }
+  .workspace-panel, .topbar, .login-card { padding: 10px; }
+  input, select, textarea { padding-inline: 10px; }
+  .journal-table td { grid-template-columns: 1fr; gap: 4px; }
 }
