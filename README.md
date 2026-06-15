@@ -6,7 +6,7 @@ A fully static, GitHub Pages-compatible dashboard for manual and semi-automatic 
 
 - Demo-only local login gate for opening the dashboard.
 - TradingView Advanced Chart widget.
-- TradingView Economic Calendar widget.
+- Investing.com Economic Calendar widget.
 - Asset selector for XAUUSD, major FX pairs, oil, silver, and BTC/USD.
 - Timeframe selector for Monthly, Weekly, Daily, H4, H1, M30, M15, and M5.
 - Screenshot upload fields for every supported timeframe, stored only in browser localStorage.

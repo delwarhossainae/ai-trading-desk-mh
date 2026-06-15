@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Trading Desk MH — Semi-Automatic Pro MVP</title>
+  <title>MH AI Trading Workflow — AI Trading Desk MH</title>
   <meta name="description" content="AI Trading Desk MH Semi-Automatic Pro MVP for static manual trading analysis, TradingView review, AI prompt generation, scorecard discipline, and local journal backup." />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -33,7 +33,7 @@
     <section id="dashboardView" class="dashboard-view hidden" aria-label="Trading dashboard">
       <header class="topbar glass-card">
         <div>
-          <p class="eyebrow">Mohammad Hossain Trading Workflow</p>
+          <p class="eyebrow">MH AI Trading Workflow</p>
           <h1>AI Trading Desk MH — Semi-Automatic Pro MVP</h1>
           <p class="muted">Static semi-automatic analysis cockpit for ChatGPT Plus, Claude Pro, TradingView, screenshots, macro notes, scorecard discipline, and local journal backup.</p>
         </div>
@@ -80,7 +80,8 @@
             </label>
             <label>
               Current price / area
-              <input id="currentPrice" placeholder="Paste live price if available" />
+              <input id="currentPrice" placeholder="Auto-filled when available; editable manually" />
+              <span id="priceStatus" class="field-status" role="status" aria-live="polite">Select an asset to update live price.</span>
             </label>
           </div>
 
@@ -108,11 +109,13 @@
           <div class="section-head">
             <div>
               <p class="eyebrow">News Risk</p>
-              <h2 id="calendarTitle">Economic Calendar</h2>
+              <h2 id="calendarTitle">Investing.com Economic Calendar</h2>
             </div>
             <button id="reloadCalendar" class="ghost-btn small-btn" type="button">Reload</button>
           </div>
           <div id="calendarWidget" class="calendar-widget"></div>
+          <p class="calendar-provider-note">Calendar data provided by Investing.com.</p>
+          <a id="calendarFallbackLink" class="ghost-link calendar-fallback-link" href="https://www.investing.com/economic-calendar/" target="_blank" rel="noopener noreferrer">Open Investing.com Economic Calendar</a>
           <div class="risk-warning news-risk-box">
             <strong>News risk warning:</strong> If high-impact USD/Fed/CPI/NFP/FOMC news is close, avoid entry before the event and wait for confirmation after volatility. Latest news/calendar data must be verified manually.
           </div>
