@@ -1,19 +1,19 @@
 const DEMO_LOGIN_NOTE = "Demo-only local session; not real authentication.";
 
 const assets = [
-  { label: "XAUUSD / Gold", tv: "OANDA:XAUUSD", short: "XAUUSD" },
-  { label: "EUR/USD", tv: "FX:EURUSD", short: "EUR/USD" },
-  { label: "EUR/JPY", tv: "FX:EURJPY", short: "EUR/JPY" },
-  { label: "USD/JPY", tv: "FX:USDJPY", short: "USD/JPY" },
-  { label: "GBP/USD", tv: "FX:GBPUSD", short: "GBP/USD" },
-  { label: "GBP/JPY", tv: "FX:GBPJPY", short: "GBP/JPY" },
-  { label: "USD/CHF", tv: "FX:USDCHF", short: "USD/CHF" },
-  { label: "AUD/USD", tv: "FX:AUDUSD", short: "AUD/USD" },
-  { label: "USD/CAD", tv: "FX:USDCAD", short: "USD/CAD" },
-  { label: "NZD/USD", tv: "FX:NZDUSD", short: "NZD/USD" },
-  { label: "US Oil", tv: "TVC:USOIL", short: "US Oil" },
-  { label: "XAGUSD / Silver", tv: "OANDA:XAGUSD", short: "XAGUSD" },
-  { label: "BTC/USD", tv: "BITSTAMP:BTCUSD", short: "BTC/USD" }
+  { label: "XAUUSD / Gold", tv: "OANDA:XAUUSD", short: "XAUUSD", priceSymbol: "GC=F" },
+  { label: "EUR/USD", tv: "FX:EURUSD", short: "EUR/USD", priceSymbol: "EURUSD=X" },
+  { label: "EUR/JPY", tv: "FX:EURJPY", short: "EUR/JPY", priceSymbol: "EURJPY=X" },
+  { label: "USD/JPY", tv: "FX:USDJPY", short: "USD/JPY", priceSymbol: "JPY=X" },
+  { label: "GBP/USD", tv: "FX:GBPUSD", short: "GBP/USD", priceSymbol: "GBPUSD=X" },
+  { label: "GBP/JPY", tv: "FX:GBPJPY", short: "GBP/JPY", priceSymbol: "GBPJPY=X" },
+  { label: "USD/CHF", tv: "FX:USDCHF", short: "USD/CHF", priceSymbol: "CHF=X" },
+  { label: "AUD/USD", tv: "FX:AUDUSD", short: "AUD/USD", priceSymbol: "AUDUSD=X" },
+  { label: "USD/CAD", tv: "FX:USDCAD", short: "USD/CAD", priceSymbol: "CAD=X" },
+  { label: "NZD/USD", tv: "FX:NZDUSD", short: "NZD/USD", priceSymbol: "NZDUSD=X" },
+  { label: "US Oil", tv: "TVC:USOIL", short: "US Oil", priceSymbol: "CL=F" },
+  { label: "XAGUSD / Silver", tv: "OANDA:XAGUSD", short: "XAGUSD", priceSymbol: "SI=F" },
+  { label: "BTC/USD", tv: "BITSTAMP:BTCUSD", short: "BTC/USD", priceSymbol: "BTC-USD" }
 ];
 
 const timeframeLabels = {
@@ -28,6 +28,7 @@ const timeframeLabels = {
 };
 
 let activePromptType = "chatgpt";
+let activePriceRequestId = 0;
 
 const BACKUP_SCHEMA = "ai-trading-desk-mh-local-backup";
 const BACKUP_VERSION = 1;
@@ -99,6 +100,7 @@ function bindEvents() {
   $('assetSelect').addEventListener('change', () => {
     $('jAsset').value = $('assetSelect').value;
     loadTradingViewChart();
+    updateCurrentPriceFromSelectedAsset();
   });
   $('timeframeSelect').addEventListener('change', loadTradingViewChart);
   $('reloadCalendar').addEventListener('click', loadCalendarWidget);
@@ -285,6 +287,7 @@ function showDashboard() {
   $('dashboardView').classList.remove('hidden');
   loadTradingViewChart();
   loadCalendarWidget();
+  updateCurrentPriceFromSelectedAsset({ onlyIfEmpty: true });
 }
 
 function showLogin() {
@@ -299,6 +302,7 @@ function toggleTheme() {
   updateThemeButton();
   loadTradingViewChart();
   loadCalendarWidget();
+  updateCurrentPriceFromSelectedAsset({ onlyIfEmpty: true });
 }
 
 function updateThemeButton() {
@@ -357,24 +361,65 @@ function loadTradingViewChart() {
 function loadCalendarWidget() {
   const container = $('calendarWidget');
   const theme = currentTheme();
-  container.innerHTML = '<div class="tradingview-widget-container" style="height:100%;width:100%"><div class="tradingview-widget-container__widget"></div><div class="tradingview-widget-copyright"><a href="https://www.tradingview.com/economic-calendar/" rel="noopener nofollow" target="_blank">Economic Calendar by TradingView</a></div></div>';
-  const script = document.createElement('script');
-  script.type = 'text/javascript';
-  script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-events.js';
-  script.async = true;
-  script.innerHTML = JSON.stringify({
-    colorTheme: theme,
-    isTransparent: false,
-    locale: "en",
-    countryFilter: "us,eu,gb,jp,ca,au,nz,ch,cn",
-    importanceFilter: "0,1",
-    width: "100%",
-    height: "100%"
+  const colors = theme === 'dark'
+    ? { background: '080b18', text: 'f6f8ff', border: '24304f' }
+    : { background: 'ffffff', text: '111827', border: 'd6deef' };
+  const params = new URLSearchParams({
+    columns: 'exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous',
+    features: 'datepicker,timezone',
+    countries: '25,32,6,37,72,22,17,39,14,10,35,43,56,36,110,11,26,12,4,5',
+    calType: 'week',
+    timeZone: '8',
+    lang: '1',
+    bgColor: colors.background,
+    textColor: colors.text,
+    borderColor: colors.border
   });
-  script.onerror = () => {
-    container.innerHTML = '<div class="widget-fallback" role="status">Economic calendar could not load. Latest news/calendar data could not be verified here; check TradingView or your broker calendar before trading.</div>';
-  };
-  container.querySelector('.tradingview-widget-container').appendChild(script);
+  container.innerHTML = `<iframe title="Investing.com Economic Calendar" src="https://sslecal2.investing.com?${params.toString()}" width="100%" height="100%" frameborder="0" allowtransparency="true" marginwidth="0" marginheight="0" loading="lazy"></iframe>`;
+}
+
+function updatePriceStatus(message, state = '') {
+  const status = $('priceStatus');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.remove('success', 'warning');
+  if (state) status.classList.add(state);
+}
+
+function formatPrice(value) {
+  if (!Number.isFinite(value)) return '';
+  if (value >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (value >= 10) return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return value.toLocaleString(undefined, { maximumFractionDigits: 5 });
+}
+
+async function updateCurrentPriceFromSelectedAsset(options = {}) {
+  const { onlyIfEmpty = false } = options;
+  const field = $('currentPrice');
+  const asset = selectedAsset();
+  if (!field || !asset.priceSymbol) return;
+  if (onlyIfEmpty && field.value.trim()) return;
+
+  const requestId = ++activePriceRequestId;
+  updatePriceStatus('Updating live price...', '');
+
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.priceSymbol)}?range=1d&interval=1m`;
+    const response = await fetch(url, { cache: 'no-store', mode: 'cors' });
+    if (!response.ok) throw new Error('Price response unavailable');
+    const data = await response.json();
+    const result = data?.chart?.result?.[0];
+    const price = result?.meta?.regularMarketPrice ?? result?.meta?.previousClose;
+    if (requestId !== activePriceRequestId) return;
+    if (!Number.isFinite(Number(price))) throw new Error('Price value unavailable');
+    field.value = formatPrice(Number(price));
+    localStorage.setItem('mh_analysis_currentPrice', sanitizePlainText(field.value, 600));
+    updatePriceStatus('Live price updated', 'success');
+    showAutosave();
+  } catch (error) {
+    if (requestId !== activePriceRequestId) return;
+    updatePriceStatus('Live price unavailable — enter manually', 'warning');
+  }
 }
 
 function setPromptType(type) {
@@ -401,7 +446,7 @@ function generatePrompt() {
 Selected symbol: ${asset.short}
 TradingView symbol: ${asset.tv}
 Current active dashboard timeframe: ${interval}
-Current price: ${currentPrice}
+Current price / area (live if available, manual fallback if edited): ${currentPrice}
 Risk profile: ${risk}
 
 ALL TIMEFRAME NOTES + SCREENSHOT REFERENCES
@@ -743,7 +788,7 @@ function exportPdf() {
     return;
   }
   showToast('PDF/print export opened.', 'success');
-  printWindow.document.write(`<!doctype html><html><head><title>AI Trading Journal</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}th{background:#f3f4f6}.muted{color:#666}</style></head><body><h1>AI Trading Journal</h1><p class="muted">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Date</th><th>Symbol</th><th>Type</th><th>Bias</th><th>Score</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>R:R</th><th>Result</th><th>AI Decision</th><th>Manual Notes</th></tr></thead><tbody>${htmlRows || '<tr><td colspan="14">No entries.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+  printWindow.document.write(`<!doctype html><html><head><title>MH AI Trading Workflow Journal</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 12px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}th{background:#f3f4f6}.muted{color:#666}</style></head><body><h1>MH AI Trading Workflow Journal</h1><p class="muted">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Date</th><th>Symbol</th><th>Type</th><th>Bias</th><th>Score</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>R:R</th><th>Result</th><th>AI Decision</th><th>Manual Notes</th></tr></thead><tbody>${htmlRows || '<tr><td colspan="14">No entries.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
   printWindow.document.close();
 }
 

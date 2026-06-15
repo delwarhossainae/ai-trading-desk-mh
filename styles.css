@@ -85,6 +85,14 @@ h2 { font-size: clamp(20px, 2vw, 28px); }
 .muted { color: var(--muted); line-height: 1.55; }
 .form-grid, .prompt-form-grid, .journal-form { display: grid; gap: 14px; }
 label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.field-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.field-status.success { color: var(--success); }
+.field-status.warning { color: var(--warning); }
 input, select, textarea {
   width: 100%;
   max-width: 100%;
@@ -189,11 +197,22 @@ code { color: var(--accent); }
   height: calc(100% - 32px) !important;
 }
 .calendar-widget {
-  height: 610px;
+  height: 520px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: rgba(0,0,0,.18);
+}
+.calendar-widget iframe { display: block; width: 100%; height: 100%; border: 0; }
+.calendar-provider-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+.calendar-fallback-link {
+  width: 100%;
+  margin-top: 10px;
 }
 .widget-fallback {
   min-height: 100%;
@@ -305,7 +324,7 @@ code { color: var(--accent); }
   .control-grid, .prompt-form-grid, .journal-form, .journal-filters { grid-template-columns: 1fr; }
   .journal-form .journal-notes-wide, .journal-filters .filter-search { grid-column: span 1; }
   .tv-box { height: clamp(430px, 72vh, 560px); border-radius: 16px; }
-  .calendar-widget { height: clamp(460px, 70vh, 560px); border-radius: 16px; }
+  .calendar-widget { height: 600px; border-radius: 16px; }
   .workspace-panel, .topbar, .login-card { border-radius: 18px; padding: 15px; }
   h1 { font-size: clamp(28px, 9vw, 34px); }
   h2 { font-size: clamp(19px, 6vw, 24px); }
@@ -333,7 +352,7 @@ code { color: var(--accent); }
   .prompt-output { min-height: 280px; font-size: 12px; }
   .indicator-note, .risk-warning, .decision-box { font-size: 13px; }
   .tv-box { height: 430px; }
-  .calendar-widget { height: 500px; }
+  .calendar-widget { height: 600px; }
 }
 
 @media (max-width: 340px) {
