@@ -28,6 +28,8 @@ const scoreCriteria = [
 ];
 
 let lastAnalysis = null;
+let calendarLoadToken = 0;
+let calendarScriptPromise = null;
 const $ = (id) => document.getElementById(id);
 
 function init() {
@@ -148,35 +150,64 @@ function loadTradingViewChart() {
 
 function loadCalendarWidget() {
   const container = $('calendarWidget');
-  container.innerHTML = '';
+  const token = ++calendarLoadToken;
+  container.innerHTML = '<div id="economicCalendarWidget" class="calendar-widget-host"></div>';
 
   const fallbackTimer = window.setTimeout(() => {
-    if (!container.querySelector('iframe')) {
+    if (token === calendarLoadToken && !container.querySelector('iframe')) {
       showCalendarFallback(container);
     }
   }, 8000);
 
-  const script = document.createElement('script');
-  script.id = 'economicCalendarWidget';
-  script.type = 'text/javascript';
-  script.src = 'https://c.mql5.com/js/widgets/calendar/widget.v1.js';
-  script.onload = () => {
-    try {
-      new economicCalendar({
-        width: '100%',
-        height: '100%',
-        mode: 2
-      });
-    } catch (error) {
+  loadCalendarScript()
+    .then(() => {
+      if (token !== calendarLoadToken) return;
+      try {
+        if (typeof economicCalendar !== 'function') throw new Error('MetaTrader calendar constructor unavailable.');
+        new economicCalendar({
+          id: 'economicCalendarWidget',
+          width: '100%',
+          height: '100%',
+          mode: 2
+        });
+      } catch (error) {
+        window.clearTimeout(fallbackTimer);
+        showCalendarFallback(container);
+      }
+    })
+    .catch(() => {
+      if (token !== calendarLoadToken) return;
       window.clearTimeout(fallbackTimer);
       showCalendarFallback(container);
+    });
+}
+
+function loadCalendarScript() {
+  if (typeof economicCalendar === 'function') return Promise.resolve();
+  if (calendarScriptPromise) return calendarScriptPromise;
+
+  calendarScriptPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector('script[data-calendar-provider="mql5"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', resolve, { once: true });
+      existingScript.addEventListener('error', reject, { once: true });
+      return;
     }
-  };
-  script.onerror = () => {
-    window.clearTimeout(fallbackTimer);
-    showCalendarFallback(container);
-  };
-  container.appendChild(script);
+
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = 'https://c.mql5.com/js/widgets/calendar/widget.v1.js';
+    script.async = true;
+    script.dataset.calendarProvider = 'mql5';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  }).catch((error) => {
+    calendarScriptPromise = null;
+    throw error;
+  });
+
+  return calendarScriptPromise;
 }
 
 function showCalendarFallback(container) {
