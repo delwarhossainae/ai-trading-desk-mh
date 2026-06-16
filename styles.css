@@ -1105,3 +1105,106 @@ html[data-theme="light"] .score-chip.score-no-trade { color: #334155; background
   .action-stack, .export-actions, .danger-zone { align-items: stretch; justify-content: flex-start; }
   .danger-zone { flex-direction: column; }
 }
+
+/* QA stability fixes: readability, responsive overflow, and safer motion defaults */
+html[data-theme="dark"] .glass-card {
+  border-color: rgba(135, 180, 255, 0.16);
+}
+
+html[data-theme="dark"] .ghost-btn,
+html[data-theme="dark"] .ghost-link {
+  background: rgba(31, 41, 68, .86);
+}
+
+html[data-theme="light"] .notice-box,
+html[data-theme="light"] .risk-warning,
+html[data-theme="light"] .no-trade-warning,
+html[data-theme="light"] .indicator-note,
+html[data-theme="light"] .decision-box {
+  color: #334155;
+  background: rgba(255, 255, 255, .72);
+  border-color: rgba(15, 23, 42, .14);
+}
+
+html[data-theme="light"] .risk-notice,
+html[data-theme="light"] .news-risk-box,
+html[data-theme="light"] .no-trade-warning,
+html[data-theme="light"] .local-storage-warning {
+  background: rgba(255, 247, 214, .82);
+  border-color: rgba(180, 83, 9, .28);
+}
+
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] .upload-file-name,
+html[data-theme="light"] .journal-fieldset legend,
+html[data-theme="light"] .journal-table th {
+  color: #0369a1;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: rgba(203, 213, 225, .76);
+}
+
+button,
+.ghost-link,
+.score-choice,
+.upload-drop-area {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+.ghost-link {
+  white-space: normal;
+  text-align: center;
+}
+
+.section-head,
+.topbar,
+.workflow-steps,
+.screenshot-status-summary,
+.export-actions,
+.danger-zone,
+.score-row,
+.asset-info-list dd,
+.journal-table td {
+  overflow-wrap: anywhere;
+}
+
+.tv-box,
+.calendar-widget,
+.screenshot-preview,
+.journal-table-wrap {
+  max-width: 100%;
+}
+
+@media (max-width: 414px) {
+  .dashboard-container { width: 100%; }
+  .app-shell { padding-inline: 8px; }
+  .topbar-actions > *,
+  .journal-actions > *,
+  .prompt-actions > * { flex-basis: 100%; }
+  .workflow-steps span,
+  .screenshot-status-pill { width: 100%; justify-content: center; }
+  .calendar-panel .calendar-widget,
+  .calendar-widget { height: 560px; }
+  .score-badge { width: 100%; }
+}
+
+@media (max-width: 390px) {
+  h1 { font-size: 26px; }
+  .tv-box { height: 400px; }
+  .calendar-panel .calendar-widget,
+  .calendar-widget { height: 540px; }
+  .score-options { gap: 5px; }
+}
+
+@media (max-width: 360px) {
+  .app-shell { padding-inline: 6px; }
+  .workspace-panel, .topbar, .login-card { padding: 10px; }
+  .primary-btn, .ghost-btn, .danger-btn, .ghost-link { min-height: 44px; padding-inline: 10px; }
+  .seg-btn { padding-inline: 8px; font-size: 12.5px; }
+  .tv-box { height: 380px; }
+  .calendar-panel .calendar-widget,
+  .calendar-widget { height: 520px; }
+}

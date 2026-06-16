@@ -115,7 +115,11 @@ function bindEvents() {
   $('claudeTab').addEventListener('click', () => setPromptType('claude'));
   document.querySelectorAll('.score-input').forEach((input) => input.addEventListener('input', calculateScore));
   document.querySelectorAll('.score-choice').forEach((button) => button.addEventListener('click', onScoreChoice));
-  $('currentPrice').addEventListener('input', () => updatePriceStatus('Manual fallback — user-entered price/area', 'manual'));
+  $('currentPrice').addEventListener('input', () => {
+    const value = sanitizePlainText($('currentPrice').value, 600);
+    updatePriceStatus(value ? 'Manual fallback — user-entered price/area' : 'Live price unavailable — enter manually', value ? 'manual' : 'error');
+    updateAssetInfoPanel();
+  });
   $('journalForm').addEventListener('submit', addJournalEntry);
   ['filterSymbol', 'filterType', 'filterScoreMin', 'filterScoreMax', 'filterResult', 'filterDateFrom', 'filterDateTo', 'filterNotes'].forEach((id) => {
     $(id).addEventListener('input', renderJournal);
@@ -736,6 +740,12 @@ function normalizeJournalEntry(row = {}) {
 
 function addJournalEntry(event) {
   event.preventDefault();
+  const validationMessage = validateJournalForm();
+  if (validationMessage) {
+    showBackupStatus(validationMessage, 'error');
+    showToast(validationMessage, 'error');
+    return;
+  }
   const asset = assets.find(item => item.tv === $('jAsset').value) || assets[0];
   const entry = normalizeJournalEntry({
     id: createId(),
@@ -765,6 +775,28 @@ function addJournalEntry(event) {
   showToast('Journal entry saved locally.', 'success');
   showAutosave();
   renderJournal();
+}
+
+
+function validateJournalForm() {
+  const requiredFields = [
+    ['jDate', 'Date is required before saving a journal entry.'],
+    ['jAsset', 'Symbol is required before saving a journal entry.'],
+    ['jType', 'Trade type is required before saving a journal entry.'],
+    ['jScore', 'Score is required and must be between 0 and 10.']
+  ];
+  for (const [id, message] of requiredFields) {
+    if (!sanitizePlainText($(id)?.value || '', 400)) return message;
+  }
+  const score = Number($('jScore').value);
+  if (!Number.isFinite(score) || score < 0 || score > 10) {
+    return 'Score must be a valid number from 0 to 10.';
+  }
+  const type = normalizeTradeType($('jType').value);
+  if ((type === 'BUY' || type === 'SELL') && score < 8) {
+    return 'BUY/SELL journal entries are blocked until the score is 8/10 or higher.';
+  }
+  return '';
 }
 
 function getFilteredJournal() {
