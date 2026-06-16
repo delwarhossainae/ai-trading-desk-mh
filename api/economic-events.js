@@ -1,11 +1,14 @@
 const { getEconomicEvents } = require('../lib/providers/economicEventsProvider');
+const { guardRequest, sanitizeCommonPayload } = require('../lib/security/requestGuards');
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, message: 'Method not allowed.' });
+  if (guardRequest(req, res)) return;
   try {
-    const data = await getEconomicEvents(req.body || {});
+    const payload = sanitizeCommonPayload(req.body || {});
+    const data = await getEconomicEvents(payload);
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ ok: false, configured: false, message: 'Economic events request failed safely.' });
+    const message = error.message === 'Invalid request.' ? 'Invalid request.' : 'Analysis temporarily unavailable.';
+    return res.status(message === 'Invalid request.' ? 400 : 503).json({ ok: false, configured: false, message });
   }
 };
