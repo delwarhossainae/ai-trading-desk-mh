@@ -61,35 +61,54 @@
             <button id="reloadChart" class="ghost-btn small-btn" type="button">Reload Chart</button>
           </div>
 
-          <div class="control-grid compact-controls">
-            <label>
-              Asset
-              <select id="assetSelect"></select>
-            </label>
-            <label>
-              Timeframe
-              <select id="timeframeSelect">
-                <option value="1M">Monthly</option>
-                <option value="1W">Weekly</option>
-                <option value="D">Daily</option>
-                <option value="240">H4</option>
-                <option value="60">H1</option>
-                <option value="30">M30</option>
-                <option value="15" selected>M15</option>
-                <option value="5">M5</option>
-              </select>
-            </label>
-            <label>
-              Current price / area
-              <input id="currentPrice" placeholder="Auto-filled when available; editable manually" />
-              <span id="priceStatus" class="field-status" role="status" aria-live="polite">Select an asset to update live price.</span>
-            </label>
-          </div>
+          <div class="chart-workflow-layout">
+            <div class="chart-main-column">
+              <div class="control-grid compact-controls">
+                <label>
+                  Asset
+                  <select id="assetSelect"></select>
+                </label>
+                <label>
+                  Timeframe
+                  <select id="timeframeSelect">
+                    <option value="1M">Monthly</option>
+                    <option value="1W">Weekly</option>
+                    <option value="D">Daily</option>
+                    <option value="240">H4</option>
+                    <option value="60">H1</option>
+                    <option value="30">M30</option>
+                    <option value="15" selected>M15</option>
+                    <option value="5">M5</option>
+                  </select>
+                </label>
+              </div>
+              <div id="tradingViewContainer" class="tv-box" aria-label="TradingView chart"></div>
+            </div>
 
-          <div id="tradingViewContainer" class="tv-box" aria-label="TradingView chart"></div>
-
-          <div class="indicator-note">
-            <strong>Chart setup checklist:</strong> EMA 50, EMA 200, Bollinger Bands 20/2, Volume, Daily Pivot Points, Fibonacci retracement/extension, support/resistance, BOS/CHoCH, liquidity sweep, rejection/engulfing confirmation.
+            <aside class="asset-info-panel" aria-labelledby="assetInfoTitle">
+              <p class="eyebrow">Selected Market</p>
+              <h3 id="assetInfoTitle">Asset Info</h3>
+              <dl class="asset-info-list">
+                <div><dt>Selected asset</dt><dd id="assetInfoName">—</dd></div>
+                <div><dt>TradingView symbol</dt><dd id="assetInfoSymbol">—</dd></div>
+                <div><dt>Timeframe</dt><dd id="assetInfoTimeframe">—</dd></div>
+                <div><dt>Current price status</dt><dd id="assetInfoPriceStatus">Live price not checked.</dd></div>
+                <div><dt>Session note</dt><dd id="assetInfoSession">Local demo session only.</dd></div>
+              </dl>
+              <label>
+                Manual price fallback
+                <input id="currentPrice" placeholder="Enter price/area if live price is unavailable" />
+                <span id="priceStatus" class="field-status" role="status" aria-live="polite">Select an asset to update live price.</span>
+              </label>
+              <div class="indicator-note compact-checklist">
+                <strong>Chart checklist summary:</strong>
+                <ul>
+                  <li>EMA 50/200, Bollinger Bands, Volume</li>
+                  <li>Daily pivots, Fibonacci, support/resistance</li>
+                  <li>BOS/CHoCH, liquidity sweep, candle confirmation</li>
+                </ul>
+              </div>
+            </aside>
           </div>
         </section>
 
@@ -114,9 +133,10 @@
             </div>
             <button id="reloadCalendar" class="ghost-btn small-btn" type="button">Reload</button>
           </div>
-          <div id="calendarWidget" class="calendar-widget"></div>
           <p class="calendar-provider-note">Calendar data provided by Investing.com.</p>
+          <p class="calendar-check-note">Check high-impact USD/EUR/JPY/GBP/CAD/CPI/NFP/FOMC news before trading.</p>
           <a id="calendarFallbackLink" class="ghost-link calendar-fallback-link" href="https://www.investing.com/economic-calendar/" target="_blank" rel="noopener noreferrer">Open Investing.com Economic Calendar</a>
+          <div id="calendarWidget" class="calendar-widget"></div>
           <div class="risk-warning news-risk-box">
             <strong>News risk warning:</strong> If high-impact USD/Fed/CPI/NFP/FOMC news is close, avoid entry before the event and wait for confirmation after volatility. Latest news/calendar data must be verified manually.
           </div>
@@ -133,6 +153,11 @@
               <button id="claudeTab" class="seg-btn" type="button" role="tab" aria-selected="false">Claude Opinion</button>
             </div>
           </div>
+
+          <div class="workflow-steps" aria-label="Prompt Builder workflow steps">
+            <span>1. Select asset and timeframe</span><span>2. Upload screenshots</span><span>3. Add chart notes</span><span>4. Check calendar/news risk</span><span>5. Choose risk profile</span><span>6. Generate prompt</span><span>7. Copy to ChatGPT or Claude</span>
+          </div>
+          <div id="screenshotStatusSummary" class="screenshot-status-summary" aria-live="polite"></div>
 
           <div class="prompt-form-grid">
             <label>
@@ -171,7 +196,7 @@
             <a id="openChatGPT" class="ghost-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
             <a id="openClaude" class="ghost-link" href="https://claude.ai/" target="_blank" rel="noopener noreferrer">Open Claude</a>
           </div>
-          <textarea id="promptOutput" class="prompt-output" rows="16" readonly placeholder="Generated Semi-Automatic Pro prompt will appear here..."></textarea>
+          <textarea id="promptOutput" class="prompt-output" rows="16" readonly placeholder="Generated prompt will appear here after you click Generate Prompt.&#10;It will include selected asset, current price, timeframe screenshot status, chart notes, economic calendar risk, scorecard result, and risk profile."></textarea>
         </section>
 
         <section class="workspace-panel glass-card score-panel" aria-labelledby="scoreTitle">
@@ -248,51 +273,53 @@
               <p class="eyebrow">Execution Discipline</p>
               <h2 id="journalTitle">Trade Journal</h2>
             </div>
-            <div class="journal-actions">
-              <button id="exportCsv" class="ghost-btn small-btn" type="button">Export CSV</button>
-              <button id="exportPdf" class="ghost-btn small-btn" type="button">Export PDF</button>
-              <button id="exportBackup" class="ghost-btn small-btn" type="button">Export JSON Backup</button>
-              <button id="importBackupTrigger" class="ghost-btn small-btn" type="button">Import JSON Backup</button>
-              <button id="clearLocalData" class="danger-btn small-btn" type="button">Clear All Local Data</button>
+            <div class="journal-actions action-stack">
+              <div class="export-actions" aria-label="Journal export and import actions">
+                <button id="exportCsv" class="ghost-btn small-btn" type="button">Export CSV</button>
+                <button id="exportPdf" class="ghost-btn small-btn" type="button">Export PDF</button>
+                <button id="exportBackup" class="ghost-btn small-btn" type="button">Export JSON Backup</button>
+                <button id="importBackupTrigger" class="ghost-btn small-btn" type="button">Import JSON Backup</button>
+              </div>
+              <div class="danger-zone" aria-label="Danger Zone">
+                <span>Danger Zone</span>
+                <button id="clearLocalData" class="danger-btn small-btn" type="button">Clear All Local Data</button>
+              </div>
               <input id="importBackupFile" class="visually-hidden" type="file" accept="application/json,.json" />
             </div>
           </div>
 
           <p id="backupStatus" class="backup-status" role="status" aria-live="polite"></p>
 
-          <form id="journalForm" class="journal-form">
-            <label>Date <input id="jDate" type="datetime-local" /></label>
-            <label>Symbol <select id="jAsset"></select></label>
-            <label>Trade type
-              <select id="jType">
-                <option>WATCH</option>
-                <option>BUY</option>
-                <option>SELL</option>
-                <option>NO TRADE</option>
-              </select>
-            </label>
-            <label>Bias <input id="jBias" placeholder="Bullish / Bearish / Neutral" /></label>
-            <label>Score /10 <input id="jScore" type="number" min="0" max="10" step="0.5" placeholder="8" /></label>
-            <label>Entry zone <input id="jEntry" placeholder="Entry zone" /></label>
-            <label>Stop loss <input id="jSl" placeholder="Stop loss" /></label>
-            <label>TP1 <input id="jTp1" placeholder="First target" /></label>
-            <label>TP2 <input id="jTp2" placeholder="Second target" /></label>
-            <label>TP3 <input id="jTp3" placeholder="Third target" /></label>
-            <label>Risk-reward <input id="jRr" placeholder="Example: 1:2" /></label>
-            <label>Result
-              <select id="jResult">
-                <option>Pending</option>
-                <option>Win</option>
-                <option>Loss</option>
-                <option>Breakeven</option>
-              </select>
-            </label>
-            <label>Profit/loss notes <textarea id="jProfitNotes" rows="3" placeholder="P/L amount, partials, management notes..."></textarea></label>
-            <label>Screenshot names <textarea id="jScreenshots" rows="3" placeholder="Screenshot file names or links saved elsewhere..."></textarea></label>
-            <label>Timeframe notes <textarea id="jTimeframeNotes" rows="3" placeholder="Monthly, Weekly, Daily, H4, H1, M15/M5 context..."></textarea></label>
-            <label>AI decision <textarea id="jAiDecision" rows="3" placeholder="AI decision, confirmation, invalidation, risk/news warning..."></textarea></label>
-            <label class="journal-notes-wide">Manual notes <textarea id="jNotes" rows="3" placeholder="Personal notes, psychology, execution review..."></textarea></label>
-            <button class="primary-btn" type="submit">Add Journal Entry</button>
+          <form id="journalForm" class="journal-form grouped-journal-form">
+            <fieldset class="journal-fieldset"><legend>Trade Setup</legend>
+              <label>Date <input id="jDate" type="datetime-local" /></label>
+              <label>Symbol <select id="jAsset"></select></label>
+              <label>Trade type <select id="jType"><option>WATCH</option><option>BUY</option><option>SELL</option><option>NO TRADE</option></select></label>
+              <label>Bias <input id="jBias" placeholder="Bullish / Bearish / Neutral" /></label>
+              <label>Score /10 <input id="jScore" type="number" min="0" max="10" step="0.5" placeholder="8" /></label>
+            </fieldset>
+            <fieldset class="journal-fieldset"><legend>Entry & Risk</legend>
+              <label>Entry zone <input id="jEntry" placeholder="Entry zone" /></label>
+              <label>Stop loss <input id="jSl" placeholder="Stop loss" /></label>
+              <label>TP1 <input id="jTp1" placeholder="First target" /></label>
+              <label>TP2 <input id="jTp2" placeholder="Second target" /></label>
+              <label>TP3 <input id="jTp3" placeholder="Third target" /></label>
+              <label>Risk-reward <input id="jRr" placeholder="Example: 1:2" /></label>
+            </fieldset>
+            <fieldset class="journal-fieldset"><legend>Result</legend>
+              <label>Result <select id="jResult"><option>Pending</option><option>Win</option><option>Loss</option><option>Breakeven</option></select></label>
+              <label>Profit/loss notes <textarea id="jProfitNotes" rows="3" placeholder="P/L amount, partials, management notes..."></textarea></label>
+            </fieldset>
+            <fieldset class="journal-fieldset"><legend>Evidence</legend>
+              <label>Screenshot names <textarea id="jScreenshots" rows="3" placeholder="Screenshot file names or links saved elsewhere..."></textarea></label>
+              <label>Timeframe notes <textarea id="jTimeframeNotes" rows="3" placeholder="Monthly, Weekly, Daily, H4, H1, M15/M5 context..."></textarea></label>
+              <label>AI decision <textarea id="jAiDecision" rows="3" placeholder="AI decision, confirmation, invalidation, risk/news warning..."></textarea></label>
+              <label>Manual notes <textarea id="jNotes" rows="3" placeholder="Personal notes, psychology, execution review..."></textarea></label>
+            </fieldset>
+            <fieldset class="journal-fieldset journal-submit-fieldset"><legend>Filters</legend>
+              <p class="muted">Use the filter panel below after saving entries. Journal data remains local to this browser.</p>
+              <button class="primary-btn" type="submit">Add Journal Entry</button>
+            </fieldset>
           </form>
 
           <div class="journal-filters" aria-label="Journal filters">
