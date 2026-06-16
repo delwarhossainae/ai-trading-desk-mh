@@ -31,6 +31,7 @@ let lastAnalysis = null;
 let calendarLoadToken = 0;
 let calendarScriptPromise = null;
 let analysisCooldownUntil = 0;
+let isAnalysisRunning = false;
 const $ = (id) => document.getElementById(id);
 
 function init() {
@@ -55,7 +56,7 @@ function bindEvents() {
   $('timeframeSelect').addEventListener('change', () => { loadTradingViewChart(); updateAssetInfoPanel(); });
   $('runAnalysis').addEventListener('click', runAiAnalysis);
   $('reviewAnalysis').addEventListener('click', reviewAnalysis);
-  $('saveAnalysisToJournal').addEventListener('click', fillJournalFromAnalysis);
+  $('saveAnalysisToJournal').addEventListener('click', saveAnalysisToJournal);
   $('journalForm').addEventListener('submit', addJournalEntry);
   ['filterSymbol', 'filterType', 'filterScoreMin', 'filterScoreMax', 'filterResult', 'filterDateFrom', 'filterDateTo', 'filterNotes'].forEach((id) => {
     $(id).addEventListener('input', renderJournal);
@@ -216,14 +217,18 @@ function showCalendarFallback(container) {
 }
 
 async function runAiAnalysis() {
-  setApiStatus('loading', 'API status: loading');
+  if (isAnalysisRunning) return;
   if (Date.now() < analysisCooldownUntil) {
     const seconds = Math.ceil((analysisCooldownUntil - Date.now()) / 1000);
     showToast(`Please wait ${seconds}s before running analysis again.`, 'error');
+    setApiStatus('neutral', 'API status: idle');
     return;
   }
+  isAnalysisRunning = true;
   analysisCooldownUntil = Date.now() + 10000;
+  setApiStatus('loading', 'API status: loading');
   $('runAnalysis').disabled = true;
+  $('runAnalysis').setAttribute('aria-busy', 'true');
   $('analysisError').textContent = '';
   renderLoadingResult();
   try {
@@ -250,7 +255,9 @@ async function runAiAnalysis() {
     setApiStatus('error', 'API status: action needed');
     showToast(message, 'error');
   } finally {
+    isAnalysisRunning = false;
     $('runAnalysis').disabled = false;
+    $('runAnalysis').removeAttribute('aria-busy');
   }
 }
 
@@ -348,7 +355,7 @@ function updateDecision(total) {
   decision.textContent = `${scoreVerdict(score)} — ${score < 8 ? 'No BUY/SELL setup unless more confirmation appears.' : 'Valid setup label allowed only with risk confirmation and news checks.'}`;
 }
 
-function scoreVerdict(score) { if (score <= 5) return 'No Trade'; if (score <= 7) return 'Watch only'; if (score === 8) return 'Valid setup'; if (score === 9) return 'Strong setup'; return 'Rare A+ setup'; }
+function scoreVerdict(score) { if (score <= 5) return 'No Trade'; if (score <= 7) return 'Watch only'; if (score < 9) return 'Valid setup'; if (score < 10) return 'Strong setup'; return 'Rare A+ setup'; }
 function scoreClass(score) { if (score <= 5) return 'score-no-trade'; if (score <= 7) return 'score-watch'; if (score === 8) return 'score-valid'; return 'score-strong'; }
 
 function fillJournalFromAnalysis() {
@@ -372,13 +379,48 @@ function fillJournalFromAnalysis() {
   showToast('AI result copied into journal form. Review before saving.', 'success');
 }
 
+
+function buildJournalEntryFromAnalysis() {
+  if (!lastAnalysis) return null;
+  return normalizeJournalEntry({
+    id: `analysis-${lastAnalysis.generatedAt}-${lastAnalysis.asset}-${lastAnalysis.timeframe}`,
+    date: toLocalDateTime(lastAnalysis.generatedAt),
+    asset: lastAnalysis.asset || selectedShortFromTv($('jAsset').value),
+    strategy: lastAnalysis.strategyMode,
+    type: resultToTradeType(lastAnalysis.decision),
+    bias: lastAnalysis.bias,
+    confidence: lastAnalysis.confidence,
+    score: lastAnalysis.score,
+    model: lastAnalysis.model,
+    entry: lastAnalysis.entryZone,
+    sl: lastAnalysis.stopLoss,
+    tp1: lastAnalysis.takeProfits.tp1 || '',
+    tp2: lastAnalysis.takeProfits.tp2 || '',
+    tp3: lastAnalysis.takeProfits.tp3 || '',
+    rr: lastAnalysis.riskReward,
+    result: 'Pending',
+    reasons: lastAnalysis.reasons.join('\n'),
+    aiDecision: `${lastAnalysis.decision}. ${lastAnalysis.riskWarning}\nEconomic risk: ${lastAnalysis.economicRisk}\nInvalidations: ${lastAnalysis.invalidations.join('; ')}`,
+    notes: ''
+  });
+}
+
+function saveAnalysisToJournal() {
+  const entry = buildJournalEntryFromAnalysis();
+  if (!entry) return;
+  setJournal([entry, ...getJournal()]);
+  renderJournal();
+  showAutosave();
+  showToast('AI analysis saved to the local journal.', 'success');
+}
+
 function resultToTradeType(decision) { if (decision === 'Buy Setup') return 'BUY'; if (decision === 'Sell Setup') return 'SELL'; if (decision === 'No Trade' || decision === 'Invalid Setup') return 'NO TRADE'; return 'WATCH'; }
 
 function addJournalEntry(event) {
   event.preventDefault();
   const error = validateJournalForm();
   if (error) { window.alert(error); return; }
-  const entry = normalizeJournalEntry({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), date: $('jDate').value, asset: selectedShortFromTv($('jAsset').value), strategy: sanitizePlainText($('jStrategy').value), type: $('jType').value, bias: sanitizePlainText($('jBias').value), confidence: sanitizePlainText($('jConfidence').value), score: sanitizePlainText($('jScore').value), model: sanitizePlainText($('jModel').value), entry: sanitizePlainText($('jEntry').value), sl: sanitizePlainText($('jSl').value), tp1: sanitizePlainText($('jTp1').value), tp2: sanitizePlainText($('jTp2').value), tp3: sanitizePlainText($('jTp3').value), rr: sanitizePlainText($('jRr').value), result: $('jResult').value, profitNotes: sanitizePlainText($('jProfitNotes').value, 4000), reasons: sanitizePlainText($('jReasons').value, 8000), aiDecision: sanitizePlainText($('jAiDecision').value, 8000), notes: sanitizePlainText($('jNotes').value, 8000) });
+  const entry = normalizeJournalEntry({ id: safeId(), date: $('jDate').value, asset: selectedShortFromTv($('jAsset').value), strategy: sanitizePlainText($('jStrategy').value), type: $('jType').value, bias: sanitizePlainText($('jBias').value), confidence: sanitizePlainText($('jConfidence').value), score: sanitizePlainText($('jScore').value), model: sanitizePlainText($('jModel').value), entry: sanitizePlainText($('jEntry').value), sl: sanitizePlainText($('jSl').value), tp1: sanitizePlainText($('jTp1').value), tp2: sanitizePlainText($('jTp2').value), tp3: sanitizePlainText($('jTp3').value), rr: sanitizePlainText($('jRr').value), result: $('jResult').value, profitNotes: sanitizePlainText($('jProfitNotes').value, 4000), reasons: sanitizePlainText($('jReasons').value, 8000), aiDecision: sanitizePlainText($('jAiDecision').value, 8000), notes: sanitizePlainText($('jNotes').value, 8000) });
   setJournal([entry, ...getJournal().map(normalizeJournalEntry)]);
   $('journalForm').reset();
   setDefaultJournalDate();
@@ -397,7 +439,16 @@ function validateJournalForm() {
 }
 
 function getJournal() { try { return JSON.parse(localStorage.getItem('mh_journal') || '[]'); } catch { return []; } }
-function setJournal(rows) { localStorage.setItem('mh_journal', JSON.stringify(rows.map(normalizeJournalEntry))); }
+function setJournal(rows) {
+  const seen = new Set();
+  const normalized = rows.map(normalizeJournalEntry).filter((row) => {
+    if (!row.id || seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+  localStorage.setItem('mh_journal', JSON.stringify(normalized));
+}
+function safeId() { return (window.crypto && typeof window.crypto.randomUUID === 'function') ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function normalizeJournalEntry(row = {}) { return { id: row.id || String(Date.now()), date: row.date || '', asset: row.asset || '', strategy: row.strategy || '', type: row.type || 'WATCH', bias: row.bias || '', confidence: row.confidence || '', score: row.score || '', model: row.model || '', entry: row.entry || '', sl: row.sl || '', tp1: row.tp1 || '', tp2: row.tp2 || '', tp3: row.tp3 || '', rr: row.rr || '', result: row.result || 'Pending', profitNotes: row.profitNotes || '', reasons: row.reasons || row.timeframeNotes || '', aiDecision: row.aiDecision || '', notes: row.notes || '' }; }
 function selectedShortFromTv(tv) { return assets.find((item) => item.tv === tv)?.short || tv; }
 
@@ -445,7 +496,7 @@ function exportPdf() {
 
 function exportLocalBackup() { downloadFile(`ai-trading-desk-backup-${todayStamp()}.json`, JSON.stringify({ schema: BACKUP_SCHEMA, version: BACKUP_VERSION, exportedAt: new Date().toISOString(), origin: window.location.origin, data: getAppLocalStorageData() }, null, 2), 'application/json;charset=utf-8'); showBackupStatus('JSON backup exported successfully.', 'success'); }
 function getAppLocalStorageData() { const data = {}; for (let i = 0; i < localStorage.length; i += 1) { const key = localStorage.key(i); if (key && key.startsWith('mh_')) data[key] = localStorage.getItem(key); } return data; }
-function importLocalBackup(event) { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const payload = JSON.parse(reader.result); validateBackupPayload(payload); Object.entries(payload.data).forEach(([key, value]) => { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); }); hydrateSession(); renderJournal(); showBackupStatus('JSON backup imported successfully.', 'success'); } catch (error) { showBackupStatus(error.message || 'Import failed.', 'error'); } finally { event.target.value = ''; } }; reader.readAsText(file); }
+function importLocalBackup(event) { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const payload = JSON.parse(reader.result); validateBackupPayload(payload); Object.entries(payload.data).forEach(([key, value]) => { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); }); setJournal(getJournal()); hydrateSession(); renderJournal(); showBackupStatus('JSON backup imported successfully.', 'success'); } catch (error) { showBackupStatus(error.message || 'Import failed.', 'error'); } finally { event.target.value = ''; } }; reader.readAsText(file); }
 function validateBackupPayload(payload) { if (!payload || payload.schema !== BACKUP_SCHEMA || !payload.data || typeof payload.data !== 'object') throw new Error('Backup file is not recognized for this dashboard.'); Object.keys(payload.data).forEach((key) => { if (!key.startsWith('mh_') || /(?:token|secret|api[_-]?key|password|passwd|private[_-]?key)/i.test(key)) throw new Error(`Backup contains an unsupported key: ${key}`); }); }
 function clearAllLocalData() { if (!window.confirm('Clear all local dashboard data in this browser?')) return; Object.keys(getAppLocalStorageData()).forEach((key) => localStorage.removeItem(key)); lastAnalysis = null; hydrateSession(); setDefaultJournalDate(); renderJournal(); renderAutoScorecard(); showToast('Local data cleared.', 'success'); }
 
