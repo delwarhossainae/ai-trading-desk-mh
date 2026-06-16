@@ -83,13 +83,13 @@
 
           <aside class="workspace-panel glass-card calendar-panel" aria-labelledby="calendarTitle">
             <div class="section-head">
-              <div><p class="eyebrow">News Risk</p><h2 id="calendarTitle">Economic Calendar</h2></div>
+              <div><p class="eyebrow">News Risk</p><h2 id="calendarTitle">MetaTrader / MQL5 Economic Calendar</h2></div>
               <button id="reloadCalendar" class="ghost-btn small-btn" type="button">Reload</button>
             </div>
-            <p class="calendar-provider-note">Calendar widget is displayed for visual review. Backend economic-event data is fetched separately when configured.</p>
-            <a id="calendarFallbackLink" class="ghost-link calendar-fallback-link" href="https://www.investing.com/economic-calendar/" target="_blank" rel="noopener noreferrer">Open Investing.com Economic Calendar</a>
-            <div id="calendarWidget" class="calendar-widget"></div>
-            <div class="risk-warning news-risk-box"><strong>News risk warning:</strong> If latest news/calendar data cannot be verified, the AI result must clearly say so and should favor No Trade or Watch.</div>
+            <p class="calendar-provider-note">Calendar data provided by MetaTrader / MQL5.</p>
+            <a id="calendarFallbackLink" class="ghost-link calendar-fallback-link" href="https://www.mql5.com/en/economic-calendar" target="_blank" rel="noopener noreferrer">Open MQL5 Economic Calendar</a>
+            <div id="calendarWidget" class="calendar-widget" aria-label="MetaTrader Economic Calendar"></div>
+            <div class="risk-warning news-risk-box"><strong>News risk warning:</strong> Economic calendar data is provided for information only. Always verify high-impact news before trading. No Trade Setup is allowed during unclear or high-risk news conditions.</div>
           </aside>
 
           <section class="workspace-panel glass-card analysis-panel" aria-labelledby="analysisTitle">
