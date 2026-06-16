@@ -968,3 +968,140 @@ html[data-theme="light"] .score-chip.score-no-trade { color: #334155; background
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Phase 2 semi-automatic professional workflow improvements */
+.chart-panel { grid-column: 1 / -1; }
+.chart-workflow-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.chart-main-column { min-width: 0; }
+.chart-main-column .control-grid { grid-template-columns: 1fr 1fr; }
+.asset-info-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255,255,255,.045);
+}
+.asset-info-panel h3 { font-size: 20px; }
+.asset-info-list { display: grid; gap: 10px; margin: 0; }
+.asset-info-list div {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.asset-info-list dt { color: var(--muted); font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.asset-info-list dd { margin: 0; color: var(--text); font-weight: 850; overflow-wrap: anywhere; }
+.compact-checklist { margin-top: 0; }
+.compact-checklist ul { margin: 8px 0 0; padding-left: 18px; }
+.calendar-panel { grid-column: 1 / -1; }
+.calendar-check-note {
+  margin: 8px 0 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 850;
+}
+.calendar-panel .calendar-widget { height: 640px; margin-top: 12px; }
+.workflow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.workflow-steps span,
+.screenshot-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,.055);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+.screenshot-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.045);
+}
+.screenshot-status-pill.uploaded { color: var(--success); border-color: rgba(69, 212, 131, .45); }
+.screenshot-status-pill.missing { color: var(--warning); border-color: rgba(255, 211, 106, .45); }
+.upload-status {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 950;
+}
+.upload-status.uploaded { color: var(--success); border-color: rgba(69, 212, 131, .48); }
+.upload-status.missing { color: var(--warning); border-color: rgba(255, 211, 106, .48); }
+.upload-drop-area {
+  cursor: pointer;
+  padding: 16px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(108,226,255,.10), rgba(139,92,246,.08));
+  text-align: center;
+}
+.upload-drop-area:hover { border-color: var(--accent); transform: translateY(-1px); }
+.upload-drop-title { color: var(--text); font-weight: 950; }
+.upload-file-name { color: var(--accent); font-size: 12px; overflow-wrap: anywhere; }
+.upload-drop-hint { color: var(--muted); font-size: 12px; font-weight: 750; }
+.action-stack { flex-direction: column; align-items: flex-end; }
+.export-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 107, 122, .28);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.grouped-journal-form { grid-template-columns: 1fr; }
+.journal-fieldset {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.04);
+}
+.journal-fieldset legend { padding: 0 8px; color: var(--accent); font-weight: 950; }
+.journal-submit-fieldset { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.journal-submit-fieldset .muted { margin: 0; }
+
+@media (max-width: 1180px) {
+  .chart-workflow-layout { grid-template-columns: 1fr; }
+  .journal-fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .chart-main-column .control-grid, .journal-fieldset, .journal-submit-fieldset { grid-template-columns: 1fr; }
+  .asset-info-panel { order: 2; }
+  .calendar-panel .calendar-widget { height: 600px; }
+  .action-stack, .export-actions, .danger-zone { align-items: stretch; justify-content: flex-start; }
+  .danger-zone { flex-direction: column; }
+}

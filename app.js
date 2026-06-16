@@ -101,8 +101,12 @@ function bindEvents() {
     $('jAsset').value = $('assetSelect').value;
     loadTradingViewChart();
     updateCurrentPriceFromSelectedAsset();
+    updateAssetInfoPanel();
   });
-  $('timeframeSelect').addEventListener('change', loadTradingViewChart);
+  $('timeframeSelect').addEventListener('change', () => {
+    loadTradingViewChart();
+    updateAssetInfoPanel();
+  });
   $('reloadCalendar').addEventListener('click', loadCalendarWidget);
   bindLocalAnalysisStorage();
   $('generatePrompt').addEventListener('click', generatePrompt);
@@ -124,6 +128,8 @@ function bindEvents() {
   $('importBackupTrigger').addEventListener('click', () => $('importBackupFile').click());
   $('importBackupFile').addEventListener('change', importLocalBackup);
   $('clearLocalData').addEventListener('click', clearAllLocalData);
+  updateAssetInfoPanel();
+  updateScreenshotStatusSummary();
 }
 
 function renderTimeframeUploads() {
@@ -132,12 +138,17 @@ function renderTimeframeUploads() {
   grid.innerHTML = manualTimeframes.map(({ key, label }) => `
     <article class="timeframe-card">
       <div class="timeframe-card-head">
-        <h3>${label}</h3>
+        <div>
+          <h3>${label}</h3>
+          <span id="${key}Status" class="upload-status missing">Missing</span>
+        </div>
         <button class="ghost-btn small-btn" type="button" data-clear-timeframe="${key}">Clear</button>
       </div>
-      <label>
-        ${label} screenshot
-        <input id="${key}Screenshot" type="file" accept="image/*" data-timeframe-upload="${key}" />
+      <label class="upload-drop-area" for="${key}Screenshot">
+        <span class="upload-drop-title">Upload ${label} screenshot</span>
+        <span id="${key}FileName" class="upload-file-name">No file selected</span>
+        <span class="upload-drop-hint">Click to choose a local image. Nothing is uploaded.</span>
+        <input id="${key}Screenshot" class="visually-hidden" type="file" accept="image/*" data-timeframe-upload="${key}" />
       </label>
       <div id="${key}Preview" class="screenshot-preview" role="status" aria-label="${label} screenshot preview">No screenshot selected.</div>
       <label>
@@ -187,7 +198,9 @@ function hydrateTimeframeUploads() {
     renderScreenshotPreview(key);
   });
   syncChartNotesSummary();
+  updateScreenshotStatusSummary();
 }
+
 
 function handleScreenshotUpload(event) {
   const input = event.target;
@@ -207,6 +220,7 @@ function handleScreenshotUpload(event) {
       renderScreenshotPreview(key);
       syncChartNotesSummary();
       showToast('Screenshot saved locally.', 'success');
+      updateAssetInfoPanel();
       showAutosave();
     } catch (error) {
       window.alert('This screenshot could not be saved locally. Browser storage may be full; try a smaller image.');
@@ -220,9 +234,18 @@ function renderScreenshotPreview(key) {
   if (!preview) return;
   const image = localStorage.getItem(`mh_timeframe_screenshot_${key}`);
   const name = localStorage.getItem(`mh_timeframe_screenshot_name_${key}`) || 'Saved screenshot';
+  const status = $(`${key}Status`);
+  const fileName = $(`${key}FileName`);
   preview.innerHTML = image
     ? `<img src="${image}" alt="${escapeHtml(name)} preview" /><span>${escapeHtml(name)}</span>`
     : 'No screenshot selected.';
+  if (status) {
+    status.textContent = image ? 'Uploaded' : 'Missing';
+    status.classList.toggle('uploaded', Boolean(image));
+    status.classList.toggle('missing', !image);
+  }
+  if (fileName) fileName.textContent = image ? name : 'No file selected';
+  updateScreenshotStatusSummary();
 }
 
 function clearTimeframeEvidence(key) {
@@ -386,7 +409,29 @@ function updatePriceStatus(message, state = '') {
   status.textContent = message;
   status.classList.remove('success', 'warning', 'delayed', 'manual', 'error');
   if (state) status.classList.add(state);
+  const panelStatus = $('assetInfoPriceStatus');
+  if (panelStatus) panelStatus.textContent = message;
 }
+
+function updateAssetInfoPanel() {
+  const asset = selectedAsset();
+  const interval = timeframeLabels[$('timeframeSelect')?.value] || $('timeframeSelect')?.value || '—';
+  if ($('assetInfoName')) $('assetInfoName').textContent = asset.label;
+  if ($('assetInfoSymbol')) $('assetInfoSymbol').textContent = asset.tv;
+  if ($('assetInfoTimeframe')) $('assetInfoTimeframe').textContent = interval;
+  if ($('assetInfoPriceStatus') && $('priceStatus')) $('assetInfoPriceStatus').textContent = $('priceStatus').textContent;
+  if ($('assetInfoSession')) $('assetInfoSession').textContent = localStorage.getItem('mh_session_note') || 'Local demo session only.';
+}
+
+function updateScreenshotStatusSummary() {
+  const summary = $('screenshotStatusSummary');
+  if (!summary) return;
+  summary.innerHTML = manualTimeframes.map(({ key, label }) => {
+    const uploaded = Boolean(localStorage.getItem(`mh_timeframe_screenshot_${key}`));
+    return `<span class="screenshot-status-pill ${uploaded ? 'uploaded' : 'missing'}"><strong>${label}:</strong> ${uploaded ? 'Uploaded' : 'Missing'}</span>`;
+  }).join('');
+}
+
 
 function formatPrice(value) {
   if (!Number.isFinite(value)) return '';
@@ -417,10 +462,12 @@ async function updateCurrentPriceFromSelectedAsset(options = {}) {
     field.value = formatPrice(Number(price));
     localStorage.setItem('mh_analysis_currentPrice', sanitizePlainText(field.value, 600));
     updatePriceStatus('Delayed price updated — verify before trading', 'delayed');
+    updateAssetInfoPanel();
     showAutosave();
   } catch (error) {
     if (requestId !== activePriceRequestId) return;
     updatePriceStatus('Live price unavailable — enter manually', 'error');
+    updateAssetInfoPanel();
   }
 }
 
@@ -430,8 +477,9 @@ function setPromptType(type) {
   $('claudeTab').classList.toggle('active', type === 'claude');
   $('chatgptTab').setAttribute('aria-selected', String(type === 'chatgpt'));
   $('claudeTab').setAttribute('aria-selected', String(type === 'claude'));
-  generatePrompt();
+  if ($('promptOutput').value.trim()) generatePrompt();
 }
+
 
 function generatePrompt() {
   const asset = selectedAsset();
@@ -443,6 +491,8 @@ function generatePrompt() {
   const calendarNotes = sanitizePlainText($('calendarNotes').value, 4000) || 'Latest economic calendar data not pasted here. Say: Latest news/calendar data could not be verified.';
   const newsNotes = sanitizePlainText($('newsNotes').value, 4000) || 'No verified geopolitical/sentiment notes pasted — state that geopolitical context is missing.';
   const risk = $('riskProfile').value;
+  const scoreText = $('scoreBadge')?.textContent || '0 / 10';
+  const decisionText = $('tradeDecision')?.textContent || 'No Trade Setup — wait for better price action confirmation.';
 
   const sharedPromptBody = `SEMI-AUTOMATIC PRO INPUTS
 Selected symbol: ${asset.short}
@@ -450,6 +500,7 @@ TradingView symbol: ${asset.tv}
 Current active dashboard timeframe: ${interval}
 Current price / area (live if available, manual fallback if edited): ${currentPrice}
 Risk profile: ${risk}
+Current scorecard result: ${scoreText} — ${decisionText}
 
 ALL TIMEFRAME NOTES + SCREENSHOT REFERENCES
 ${timeframeEvidence}
@@ -536,7 +587,7 @@ Final Warning:`;
 You are an expert ${asset.short} trading analyst, professional price action trader, multi-timeframe technical analyst, macroeconomic analyst, and risk-management specialist.
 
 TASK
-Build a professional Semi-Automatic Pro analysis for ${asset.short} using Monthly, Weekly, Daily, H4, H1, M30, M15, and M5. Find the best high-probability short-term opportunity on M15 or M5 only if the setup is clean and all trading-rulebook conditions are satisfied.
+Build a professional Semi-Automatic Pro analysis focused on full multi-timeframe analysis, price action, market structure, indicator confirmation, macro/news risk, and scalping decision discipline for ${asset.short} using Monthly, Weekly, Daily, H4, H1, M30, M15, and M5. Find the best high-probability short-term opportunity on M15 or M5 only if the setup is clean and all trading-rulebook conditions are satisfied.
 
 ${sharedPromptBody}`;
 
@@ -545,7 +596,7 @@ ${sharedPromptBody}`;
 Act as my second-opinion risk filter for ${asset.short}. Be stricter than the first analysis. Challenge weak assumptions, identify missing evidence, reject any invented levels, and only approve a setup if the scoring rules support 8/10 or higher.
 
 TASK
-Review the same Semi-Automatic Pro inputs using Monthly, Weekly, Daily, H4, H1, M30, M15, and M5. Your job is to confirm whether the trade idea should be approved, downgraded to watchlist, or rejected as no trade.
+Review the same Semi-Automatic Pro inputs as a second opinion, risk review, contradiction check, bias detection check, aggressiveness review, and no-trade validation using Monthly, Weekly, Daily, H4, H1, M30, M15, and M5. Your job is to confirm whether the trade idea should be approved, downgraded to watchlist, or rejected as no trade.
 
 ${sharedPromptBody}`;
 
@@ -917,6 +968,7 @@ function importLocalBackup(event) {
       restoreUiFromLocalStorage();
       showBackupStatus('JSON backup imported successfully. Local app data was restored.', 'success');
       showToast('JSON backup imported.', 'success');
+      updateAssetInfoPanel();
       showAutosave();
     } catch (error) {
       showBackupStatus(`Import failed: ${error.message}`, 'error');
@@ -932,7 +984,7 @@ function importLocalBackup(event) {
 }
 
 function clearAllLocalData() {
-  const confirmed = window.confirm('Clear all AI Trading Desk local data from this browser? This removes journal entries, notes, screenshots, theme, and demo session. Export a JSON backup first if you want to keep a copy.');
+  const confirmed = window.confirm('Are you sure? This will permanently remove all local journal data from this browser. It also removes local notes, screenshots, theme, and demo session data. Export a JSON backup first if you want to keep a copy.');
   if (!confirmed) {
     showBackupStatus('Clear all local data cancelled.', '');
     return;
@@ -1004,7 +1056,7 @@ function sanitizePlainText(value = '', maxLength = 4000) {
 function showAutosave() {
   const indicator = $('autosaveIndicator');
   if (!indicator) return;
-  indicator.textContent = `Autosaved ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  indicator.textContent = `Saved locally • Last saved ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Local browser only`;
   indicator.classList.add('saved');
   window.clearTimeout(showAutosave.timer);
   showAutosave.timer = window.setTimeout(() => indicator.classList.remove('saved'), 1600);
