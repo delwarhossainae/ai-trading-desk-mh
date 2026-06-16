@@ -31,7 +31,8 @@
     </section>
 
     <section id="dashboardView" class="dashboard-view hidden" aria-label="Trading dashboard">
-      <header class="topbar glass-card">
+      <div class="dashboard-container">
+        <header class="topbar glass-card">
         <div>
           <p class="eyebrow">MH AI Trading Workflow</p>
           <h1>AI Trading Desk MH — Semi-Automatic Pro MVP</h1>
@@ -42,15 +43,15 @@
           <button id="themeToggle" class="ghost-btn" type="button">Light Mode</button>
           <button id="logoutBtn" class="danger-btn" type="button">Logout</button>
         </div>
-      </header>
+        </header>
 
-      <div class="disclaimer-grid" aria-label="Important disclaimers">
+        <div class="disclaimer-grid" aria-label="Important disclaimers">
         <div class="notice-box"><strong>Educational disclaimer:</strong> AI Trading Desk MH is for educational journaling and manual analysis support only. It is not financial advice.</div>
         <div class="notice-box risk-notice"><strong>Trading risk warning:</strong> Forex, commodities, crypto, and CFDs can cause significant losses. Never trade money you cannot afford to lose.</div>
         <div class="notice-box"><strong>Local storage privacy:</strong> notes, screenshots, demo session, and journal data stay in this browser localStorage. Anyone with browser/device access may view them; clear local data on shared devices.</div>
-      </div>
+        </div>
 
-      <main class="dashboard-grid">
+        <main class="dashboard-grid">
         <section class="workspace-panel glass-card chart-panel" aria-labelledby="chartTitle">
           <div class="section-head">
             <div>
@@ -181,12 +182,52 @@
             </div>
             <span id="scoreBadge" class="score-badge">0 / 10</span>
           </div>
-          <div class="score-grid">
-            <label>Higher-timeframe alignment <input class="score-input" data-key="htf" type="number" min="0" max="2" step="0.5" value="0"></label>
-            <label>Fundamental/news support <input class="score-input" data-key="fundamental" type="number" min="0" max="2" step="0.5" value="0"></label>
-            <label>Market structure confirmation <input class="score-input" data-key="structure" type="number" min="0" max="2" step="0.5" value="0"></label>
-            <label>M15/M5 entry confirmation <input class="score-input" data-key="entry" type="number" min="0" max="2" step="0.5" value="0"></label>
-            <label>Risk-reward quality <input class="score-input" data-key="rr" type="number" min="0" max="2" step="0.5" value="0"></label>
+          <div class="score-grid" aria-label="Scorecard criteria, each worth 0 to 2 points">
+            <div class="score-row">
+              <div><span class="score-label">Higher-timeframe alignment</span><span class="score-helper">0 = none, 1 = partial, 2 = clear alignment</span></div>
+              <div class="score-options" role="radiogroup" aria-label="Higher-timeframe alignment score">
+                <button class="score-choice active" type="button" data-score-key="htf" data-score-value="0" aria-pressed="true">0</button>
+                <button class="score-choice" type="button" data-score-key="htf" data-score-value="1" aria-pressed="false">1</button>
+                <button class="score-choice" type="button" data-score-key="htf" data-score-value="2" aria-pressed="false">2</button>
+                <input class="score-input visually-hidden" data-key="htf" type="number" min="0" max="2" step="1" value="0" aria-hidden="true" tabindex="-1">
+              </div>
+            </div>
+            <div class="score-row">
+              <div><span class="score-label">Fundamental/news support</span><span class="score-helper">0 = conflict, 1 = mixed, 2 = supportive</span></div>
+              <div class="score-options" role="radiogroup" aria-label="Fundamental and news support score">
+                <button class="score-choice active" type="button" data-score-key="fundamental" data-score-value="0" aria-pressed="true">0</button>
+                <button class="score-choice" type="button" data-score-key="fundamental" data-score-value="1" aria-pressed="false">1</button>
+                <button class="score-choice" type="button" data-score-key="fundamental" data-score-value="2" aria-pressed="false">2</button>
+                <input class="score-input visually-hidden" data-key="fundamental" type="number" min="0" max="2" step="1" value="0" aria-hidden="true" tabindex="-1">
+              </div>
+            </div>
+            <div class="score-row">
+              <div><span class="score-label">Market structure confirmation</span><span class="score-helper">0 = unclear, 1 = forming, 2 = confirmed</span></div>
+              <div class="score-options" role="radiogroup" aria-label="Market structure confirmation score">
+                <button class="score-choice active" type="button" data-score-key="structure" data-score-value="0" aria-pressed="true">0</button>
+                <button class="score-choice" type="button" data-score-key="structure" data-score-value="1" aria-pressed="false">1</button>
+                <button class="score-choice" type="button" data-score-key="structure" data-score-value="2" aria-pressed="false">2</button>
+                <input class="score-input visually-hidden" data-key="structure" type="number" min="0" max="2" step="1" value="0" aria-hidden="true" tabindex="-1">
+              </div>
+            </div>
+            <div class="score-row">
+              <div><span class="score-label">M15/M5 entry confirmation</span><span class="score-helper">0 = absent, 1 = partial, 2 = clean trigger</span></div>
+              <div class="score-options" role="radiogroup" aria-label="M15/M5 entry confirmation score">
+                <button class="score-choice active" type="button" data-score-key="entry" data-score-value="0" aria-pressed="true">0</button>
+                <button class="score-choice" type="button" data-score-key="entry" data-score-value="1" aria-pressed="false">1</button>
+                <button class="score-choice" type="button" data-score-key="entry" data-score-value="2" aria-pressed="false">2</button>
+                <input class="score-input visually-hidden" data-key="entry" type="number" min="0" max="2" step="1" value="0" aria-hidden="true" tabindex="-1">
+              </div>
+            </div>
+            <div class="score-row">
+              <div><span class="score-label">Risk-reward quality</span><span class="score-helper">0 = poor, 1 = acceptable, 2 = 1:2+ clean</span></div>
+              <div class="score-options" role="radiogroup" aria-label="Risk-reward quality score">
+                <button class="score-choice active" type="button" data-score-key="rr" data-score-value="0" aria-pressed="true">0</button>
+                <button class="score-choice" type="button" data-score-key="rr" data-score-value="1" aria-pressed="false">1</button>
+                <button class="score-choice" type="button" data-score-key="rr" data-score-value="2" aria-pressed="false">2</button>
+                <input class="score-input visually-hidden" data-key="rr" type="number" min="0" max="2" step="1" value="0" aria-hidden="true" tabindex="-1">
+              </div>
+            </div>
           </div>
           <div id="tradeDecision" class="decision-box no-trade">
             No Trade Setup — wait for better price action confirmation.
@@ -287,7 +328,8 @@
             </table>
           </div>
         </section>
-      </main>
+        </main>
+      </div>
     </section>
   </div>
   <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
