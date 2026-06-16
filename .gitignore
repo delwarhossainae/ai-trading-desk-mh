@@ -1,7 +1,8 @@
 .env
-.env.local
-.env.*.local
-node_modules/
-.vercel/
-.netlify/
+.env.*
+!.env.example
+node_modules
+.vercel
+.netlify
+dist
 .DS_Store

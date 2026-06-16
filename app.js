@@ -30,6 +30,7 @@ const scoreCriteria = [
 let lastAnalysis = null;
 let calendarLoadToken = 0;
 let calendarScriptPromise = null;
+let analysisCooldownUntil = 0;
 const $ = (id) => document.getElementById(id);
 
 function init() {
@@ -216,6 +217,12 @@ function showCalendarFallback(container) {
 
 async function runAiAnalysis() {
   setApiStatus('loading', 'API status: loading');
+  if (Date.now() < analysisCooldownUntil) {
+    const seconds = Math.ceil((analysisCooldownUntil - Date.now()) / 1000);
+    showToast(`Please wait ${seconds}s before running analysis again.`, 'error');
+    return;
+  }
+  analysisCooldownUntil = Date.now() + 10000;
   $('runAnalysis').disabled = true;
   $('analysisError').textContent = '';
   renderLoadingResult();
@@ -237,7 +244,7 @@ async function runAiAnalysis() {
     setApiStatus('success', 'API status: analysis complete');
     showToast('AI analysis complete.', 'success');
   } catch (error) {
-    const message = error.message || 'Analysis failed. Check serverless API configuration.';
+    const message = error.name === 'AbortError' ? 'Analysis temporarily unavailable.' : (error.message || 'Analysis temporarily unavailable.');
     $('analysisError').textContent = message;
     renderErrorResult(message);
     setApiStatus('error', 'API status: action needed');
@@ -269,20 +276,27 @@ async function reviewAnalysis() {
 }
 
 async function postJson(url, payload) {
-  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || `${url} returned ${response.status}`);
-  return data;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || 'Analysis temporarily unavailable.');
+    if (!data || typeof data !== 'object') throw new Error('Analysis temporarily unavailable.');
+    return data;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function normalizeAnalysis(raw, context) {
   const score = clampNumber(raw.score, 0, 10);
   const safeDecision = enforceDecision(raw.decision, score);
-  return { ...raw, ...context, decision: safeDecision, bias: allowedValue(raw.bias, ['Bullish', 'Bearish', 'Neutral'], 'Neutral'), confidence: clampNumber(raw.confidence, 0, 100), score, entryZone: raw.entryZone || 'Not provided — market data may be missing.', stopLoss: raw.stopLoss || 'Not provided.', takeProfits: raw.takeProfits || {}, riskReward: raw.riskReward || 'Not provided.', reasons: Array.isArray(raw.reasons) ? raw.reasons : [], invalidations: Array.isArray(raw.invalidations) ? raw.invalidations : [], economicRisk: raw.economicRisk || 'Latest news/calendar data could not be verified.', riskWarning: raw.riskWarning || 'Risk capital only. No analysis guarantees profit.', scorecard: normalizeScorecard(raw.scorecard), model: raw.model || 'unknown', generatedAt: raw.generatedAt || new Date().toISOString() };
+  return { ...raw, ...context, decision: safeDecision, bias: allowedValue(raw.bias, ['Bullish', 'Bearish', 'Neutral'], 'Neutral'), confidence: clampNumber(raw.confidence, 0, 100), score, entryZone: raw.entryZone || 'Not provided — market data may be missing.', stopLoss: raw.stopLoss || 'Not provided.', takeProfits: raw.takeProfits || {}, riskReward: raw.riskReward || 'Not provided.', reasons: Array.isArray(raw.reasons) ? raw.reasons : [], invalidations: Array.isArray(raw.invalidations) ? raw.invalidations : [], economicRisk: raw.economicRisk || 'Latest news/calendar data could not be verified.', riskWarning: raw.riskWarning || 'This dashboard provides AI-assisted analysis for education and decision support only. It does not guarantee profit and does not execute trades.', scorecard: normalizeScorecard(raw.scorecard), model: raw.model || 'unknown', generatedAt: raw.generatedAt || new Date().toISOString() };
 }
 
 function enforceDecision(decision, score) {
-  const normalized = allowedValue(decision, ['No Trade', 'Watch', 'Buy Setup', 'Sell Setup'], 'No Trade');
+  const normalized = allowedValue(decision, ['No Trade', 'Watch', 'Invalid Setup', 'Buy Setup', 'Sell Setup'], 'No Trade');
   if ((normalized === 'Buy Setup' || normalized === 'Sell Setup') && score < 8) return 'Watch';
   return normalized;
 }
@@ -358,7 +372,7 @@ function fillJournalFromAnalysis() {
   showToast('AI result copied into journal form. Review before saving.', 'success');
 }
 
-function resultToTradeType(decision) { if (decision === 'Buy Setup') return 'BUY'; if (decision === 'Sell Setup') return 'SELL'; if (decision === 'No Trade') return 'NO TRADE'; return 'WATCH'; }
+function resultToTradeType(decision) { if (decision === 'Buy Setup') return 'BUY'; if (decision === 'Sell Setup') return 'SELL'; if (decision === 'No Trade' || decision === 'Invalid Setup') return 'NO TRADE'; return 'WATCH'; }
 
 function addJournalEntry(event) {
   event.preventDefault();
