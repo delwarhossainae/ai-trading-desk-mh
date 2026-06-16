@@ -604,7 +604,7 @@ function calculateScore() {
   $('scoreBadge').textContent = `${total} / 10`;
   const box = $('tradeDecision');
   const badge = $('scoreBadge');
-  badge.classList.remove('score-no-trade', 'score-watch', 'score-valid', 'score-strong');
+  badge.classList.remove('score-no-trade', 'score-watch', 'score-valid', 'score-strong', 'score-aplus');
   box.classList.remove('no-trade', 'watch', 'valid', 'strong');
   if (total <= 5) {
     box.classList.add('no-trade');
@@ -624,7 +624,7 @@ function calculateScore() {
     box.textContent = 'Strong Setup — follow risk management and wait for clean trigger.';
   } else {
     box.classList.add('strong');
-    badge.classList.add('score-strong');
+    badge.classList.add('score-aplus');
     box.textContent = 'Rare A+ Setup — confirm spread/news/liquidity before entry.';
   }
 }
@@ -989,7 +989,8 @@ function scoreClass(score) {
   if (Number.isNaN(value) || value <= 5) return 'score-no-trade';
   if (value < 8) return 'score-watch';
   if (value < 9) return 'score-valid';
-  return 'score-strong';
+  if (value < 10) return 'score-strong';
+  return 'score-aplus';
 }
 
 function sanitizePlainText(value = '', maxLength = 4000) {
