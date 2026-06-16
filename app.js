@@ -147,9 +147,40 @@ function loadTradingViewChart() {
 }
 
 function loadCalendarWidget() {
-  const colors = currentTheme() === 'dark' ? { background: '080b18', text: 'f6f8ff', border: '24304f' } : { background: 'ffffff', text: '111827', border: 'd6deef' };
-  const params = new URLSearchParams({ columns: 'exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous', features: 'datepicker,timezone', countries: '25,32,6,37,72,22,17,39,14,10,35,43,56,36,110,11,26,12,4,5', calType: 'week', timeZone: '8', lang: '1', bgColor: colors.background, textColor: colors.text, borderColor: colors.border });
-  $('calendarWidget').innerHTML = `<iframe title="Investing.com Economic Calendar" src="https://sslecal2.investing.com?${params.toString()}" width="100%" height="100%" frameborder="0" allowtransparency="true" marginwidth="0" marginheight="0" loading="lazy"></iframe>`;
+  const container = $('calendarWidget');
+  container.innerHTML = '';
+
+  const fallbackTimer = window.setTimeout(() => {
+    if (!container.querySelector('iframe')) {
+      showCalendarFallback(container);
+    }
+  }, 8000);
+
+  const script = document.createElement('script');
+  script.id = 'economicCalendarWidget';
+  script.type = 'text/javascript';
+  script.src = 'https://c.mql5.com/js/widgets/calendar/widget.v1.js';
+  script.onload = () => {
+    try {
+      new economicCalendar({
+        width: '100%',
+        height: '100%',
+        mode: 2
+      });
+    } catch (error) {
+      window.clearTimeout(fallbackTimer);
+      showCalendarFallback(container);
+    }
+  };
+  script.onerror = () => {
+    window.clearTimeout(fallbackTimer);
+    showCalendarFallback(container);
+  };
+  container.appendChild(script);
+}
+
+function showCalendarFallback(container) {
+  container.innerHTML = '<div class="widget-fallback" role="status">MetaTrader Economic Calendar could not be loaded. <a href="https://www.mql5.com/en/economic-calendar" target="_blank" rel="noopener noreferrer">Open the MQL5 Economic Calendar directly.</a></div>';
 }
 
 async function runAiAnalysis() {
