@@ -13,7 +13,7 @@ const assets = [
   { label: "NZD/USD", tv: "FX:NZDUSD", short: "NZD/USD", priceSymbol: "NZDUSD=X" },
   { label: "US Oil", tv: "TVC:USOIL", short: "US Oil", priceSymbol: "CL=F" },
   { label: "XAGUSD / Silver", tv: "OANDA:XAGUSD", short: "XAGUSD", priceSymbol: "SI=F" },
-  { label: "BTC/USD", tv: "BITSTAMP:BTCUSD", short: "BTC/USD", priceSymbol: "BTC-USD" }
+  { label: "BTC/USD", tv: "BINANCE:BTCUSDT", short: "BTC/USD", priceSymbol: "BTC-USD" }
 ];
 
 const timeframeLabels = {
@@ -110,6 +110,8 @@ function bindEvents() {
   $('chatgptTab').addEventListener('click', () => setPromptType('chatgpt'));
   $('claudeTab').addEventListener('click', () => setPromptType('claude'));
   document.querySelectorAll('.score-input').forEach((input) => input.addEventListener('input', calculateScore));
+  document.querySelectorAll('.score-choice').forEach((button) => button.addEventListener('click', onScoreChoice));
+  $('currentPrice').addEventListener('input', () => updatePriceStatus('Manual fallback — user-entered price/area', 'manual'));
   $('journalForm').addEventListener('submit', addJournalEntry);
   ['filterSymbol', 'filterType', 'filterScoreMin', 'filterScoreMax', 'filterResult', 'filterDateFrom', 'filterDateTo', 'filterNotes'].forEach((id) => {
     $(id).addEventListener('input', renderJournal);
@@ -382,7 +384,7 @@ function updatePriceStatus(message, state = '') {
   const status = $('priceStatus');
   if (!status) return;
   status.textContent = message;
-  status.classList.remove('success', 'warning');
+  status.classList.remove('success', 'warning', 'delayed', 'manual', 'error');
   if (state) status.classList.add(state);
 }
 
@@ -401,7 +403,7 @@ async function updateCurrentPriceFromSelectedAsset(options = {}) {
   if (onlyIfEmpty && field.value.trim()) return;
 
   const requestId = ++activePriceRequestId;
-  updatePriceStatus('Updating live price...', '');
+  updatePriceStatus('Checking delayed price...', '');
 
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.priceSymbol)}?range=1d&interval=1m`;
@@ -414,11 +416,11 @@ async function updateCurrentPriceFromSelectedAsset(options = {}) {
     if (!Number.isFinite(Number(price))) throw new Error('Price value unavailable');
     field.value = formatPrice(Number(price));
     localStorage.setItem('mh_analysis_currentPrice', sanitizePlainText(field.value, 600));
-    updatePriceStatus('Live price updated', 'success');
+    updatePriceStatus('Delayed price updated — verify before trading', 'delayed');
     showAutosave();
   } catch (error) {
     if (requestId !== activePriceRequestId) return;
-    updatePriceStatus('Live price unavailable — enter manually', 'warning');
+    updatePriceStatus('Live price unavailable — enter manually', 'error');
   }
 }
 
@@ -564,38 +566,66 @@ async function copyPrompt() {
   }
 }
 
+function onScoreChoice(event) {
+  const button = event.currentTarget;
+  const key = button.dataset.scoreKey;
+  const value = button.dataset.scoreValue;
+  const input = document.querySelector(`.score-input[data-key="${key}"]`);
+  if (!input) return;
+  input.value = value;
+  document.querySelectorAll(`.score-choice[data-score-key="${key}"]`).forEach((choice) => {
+    const active = choice === button;
+    choice.classList.toggle('active', active);
+    choice.setAttribute('aria-pressed', String(active));
+  });
+  calculateScore();
+}
+
+function syncScoreChoices() {
+  document.querySelectorAll('.score-input').forEach((input) => {
+    const value = String(Math.round(Math.max(0, Math.min(2, parseFloat(input.value || '0')))));
+    input.value = value;
+    document.querySelectorAll(`.score-choice[data-score-key="${input.dataset.key}"]`).forEach((choice) => {
+      const active = choice.dataset.scoreValue === value;
+      choice.classList.toggle('active', active);
+      choice.setAttribute('aria-pressed', String(active));
+    });
+  });
+}
+
 function calculateScore() {
   let total = 0;
   document.querySelectorAll('.score-input').forEach((input) => {
-    const value = Math.max(0, Math.min(2, parseFloat(input.value || '0')));
-    input.value = Number.isInteger(value) ? value : value.toFixed(1);
+    const value = Math.round(Math.max(0, Math.min(2, parseFloat(input.value || '0'))));
+    input.value = value;
     total += value;
   });
-  $('scoreBadge').textContent = `${total.toFixed(total % 1 === 0 ? 0 : 1)} / 10`;
+  syncScoreChoices();
+  $('scoreBadge').textContent = `${total} / 10`;
   const box = $('tradeDecision');
   const badge = $('scoreBadge');
   badge.classList.remove('score-no-trade', 'score-watch', 'score-valid', 'score-strong');
   box.classList.remove('no-trade', 'watch', 'valid', 'strong');
-  if (total < 6) {
+  if (total <= 5) {
     box.classList.add('no-trade');
     badge.classList.add('score-no-trade');
-    box.textContent = 'No Trade Setup — wait for better price action confirmation.';
-  } else if (total < 8) {
+    box.textContent = 'No Trade Setup — score below 8/10.';
+  } else if (total <= 7) {
     box.classList.add('watch');
     badge.classList.add('score-watch');
-    box.textContent = 'Watch Only — setup is not strong enough for BUY/SELL. Wait for M15/M5 confirmation.';
+    box.textContent = 'Watch only — setup is not confirmed enough.';
   } else if (total === 8) {
     box.classList.add('valid');
     badge.classList.add('score-valid');
-    box.textContent = 'Valid Setup — entry allowed only after trigger candle, retest, news-risk check, and 1:2+ R:R.';
+    box.textContent = 'Valid Setup — still verify news risk and final entry confirmation.';
   } else if (total === 9) {
     box.classList.add('strong');
     badge.classList.add('score-strong');
-    box.textContent = 'Strong Setup — still wait for exact entry trigger and invalidation confirmation.';
+    box.textContent = 'Strong Setup — follow risk management and wait for clean trigger.';
   } else {
     box.classList.add('strong');
     badge.classList.add('score-strong');
-    box.textContent = 'Rare A+ Setup — execute only with fixed risk and no news conflict.';
+    box.textContent = 'Rare A+ Setup — confirm spread/news/liquidity before entry.';
   }
 }
 
