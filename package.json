@@ -1,0 +1,14 @@
+{
+  "name": "ai-trading-desk-mh",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Automatic AI Analysis MVP with static frontend and serverless API routes.",
+  "scripts": {
+    "start": "vercel dev",
+    "serve:static": "python -m http.server 8000",
+    "check:syntax": "node --check app.js && node --check api/market-data.js && node --check api/economic-events.js && node --check api/analyze.js && node --check api/review.js && node --check lib/providers/marketDataProvider.js && node --check lib/providers/economicEventsProvider.js && node --check lib/ai/openaiAnalyzer.js && node --check lib/ai/anthropicReviewer.js && node --check lib/safety/tradingRules.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
