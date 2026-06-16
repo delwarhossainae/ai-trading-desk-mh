@@ -1,86 +1,72 @@
-# AI Trading Desk MH — Semi-Automatic Pro MVP
+# AI Trading Desk MH — Automatic AI Analysis MVP
 
-A fully static, GitHub Pages-compatible dashboard for manual and semi-automatic trading analysis support. The app runs entirely in the browser and does **not** use backend code, OpenAI API keys, Claude API keys, broker API keys, or private credentials.
+A premium, responsive trading-analysis dashboard that keeps TradingView as a visual chart preview while moving automatic AI analysis to secure backend/serverless API routes.
 
 ## What is included
 
 - Demo-only local login gate for opening the dashboard.
-- TradingView Advanced Chart widget.
-- Investing.com Economic Calendar widget.
-- Asset selector for XAUUSD, major FX pairs, oil, silver, and BTC/USD.
-- Timeframe selector for Monthly, Weekly, Daily, H4, H1, M30, M15, and M5.
-- Screenshot upload fields for every supported timeframe, stored only in browser localStorage.
-- Manual chart notes for every supported timeframe.
-- Current price / area notes.
-- DXY notes, US bond yield notes, economic-calendar notes, and geopolitical/news notes.
-- ChatGPT Professional Analysis Prompt generator.
-- Claude Second-Opinion Prompt generator.
-- Strict 10-point trade scorecard with colored no-trade, watch, valid, and strong setup states.
-- Trade journal with filters by symbol, trade type, score range, result, date range, and notes search.
-- Status badges, score chips, toast notifications, autosave indicator, and empty states.
+- TradingView Advanced Chart widget for visual preview only.
+- Economic calendar display for visual review.
+- Automatic AI Analysis panel with asset, strategy mode, risk profile, analysis depth, API status, and last-analysis time.
+- Serverless API route structure for `/api/market-data`, `/api/economic-events`, `/api/analyze`, and optional `/api/review`.
+- Provider abstraction for future forex/metals, crypto, oil, and stocks market-data adapters.
+- Auto 10-point scorecard.
+- AI result panel with decision, bias, confidence, score, entry zone, stop loss idea, TP levels, risk-reward, reasons, invalidations, news risk, and risk note.
+- Trade journal that can save automatic AI results and manual final results later.
 - CSV journal export.
 - PDF / print journal export.
 - Full JSON local backup export and import.
 - Dark/light mode.
-- Mobile-first responsive layout from 320px to desktop.
+- Mobile-first responsive layout.
 
-## Strict trading rules preserved
+## Safety and trading rules
 
-The prompt workflow and scorecard are designed to reinforce these rules:
-
-- No random signals.
+- No auto-trading or broker execution.
+- No random buy/sell signals.
 - No forced trades.
 - No guaranteed profit language.
-- No exact levels if current price, screenshots, or notes are missing.
-- No BUY or SELL unless the score is 8/10 or higher.
-- If the market is unclear, use: “No Trade Setup — wait for better price action confirmation.”
+- No “100% sure” language.
+- Always allow “No Trade Setup — wait for better price action confirmation.”
+- No BUY or SELL setup unless score is 8/10 or higher.
 - Always include confirmation, invalidation, risk management, and news risk.
-- If latest news/calendar data cannot be verified, clearly state that latest news/calendar data could not be verified.
+- If current market data is missing, clearly say current market data is missing.
+- If latest news/calendar data cannot be verified, clearly say latest news/calendar data could not be verified.
 
-## Security, privacy, and risk notes
+## Serverless environment variables
 
-- Login is demo-only and browser-side; it is not real authentication.
-- No secrets, API keys, broker credentials, OpenAI keys, or Claude keys are required or stored.
-- Journal data, notes, screenshots, theme, and demo session state are stored in this browser's localStorage.
-- Anyone with access to the browser/device may be able to view localStorage data.
-- Export a JSON backup before clearing browser data or switching devices.
-- This dashboard is educational software for journaling and manual analysis support only. It is not financial advice.
-- Trading forex, commodities, crypto, and CFDs involves significant risk of loss.
+Configure these only in the backend/serverless host. Never commit real secrets.
 
-## Demo login
+```bash
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+MARKET_DATA_API_KEY=
+ECONOMIC_CALENDAR_API_KEY=
+```
 
-Enter any non-empty username and password to open the demo dashboard. This only stores a local browser session flag.
+`ANTHROPIC_API_KEY` and `ECONOMIC_CALENDAR_API_KEY` are optional. Claude review is disabled when Anthropic is not configured.
+
+## Market data limitation
+
+The provider abstraction is in place, but no concrete paid/live data provider is hardcoded. If no provider key is configured, the app returns:
+
+> Market data API is not configured. Add provider key in backend environment variables.
+
+The dashboard must not fake live data.
 
 ## How to run locally
 
-Open `index.html` directly in your browser.
-
-If the TradingView widgets do not load from a local file path, run a local static server:
+Static-only preview:
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open:
+Serverless API preview with Vercel CLI:
 
-```text
-http://localhost:8000
+```bash
+vercel dev
 ```
 
-## How to publish on GitHub Pages
+## GitHub Pages compatibility
 
-1. Upload these files to a GitHub repository:
-   - `index.html`
-   - `styles.css`
-   - `app.js`
-   - `README.md`
-   - `CODEX_TASK_PROMPTS.md`
-   - `CNAME` if using the existing custom domain.
-2. Go to repository **Settings → Pages**.
-3. Use **Deploy from branch**.
-4. Select the publishing branch and root folder.
-5. Save and open the Pages URL after deployment.
-
-## Important limitation
-
-This MVP works with ChatGPT Plus and Claude Pro manually. It does not call ChatGPT, Claude, brokers, or market-data APIs automatically. Fully automated AI analysis would require secure server-side API calls and proper authentication, which are intentionally outside this static GitHub Pages MVP.
+The frontend remains static-compatible, but GitHub Pages cannot securely run `/api/*` routes or protect API keys. Use Vercel or Netlify for the automatic AI workflow. GitHub Pages can still host a static-only preview, but automatic analysis requires serverless backend deployment.
