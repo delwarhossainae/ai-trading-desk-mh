@@ -1,4 +1,4 @@
-const { providers, providerStatuses, reviewWithProvider } = require('../lib/ai/providerRouter');
+const { providers, providerStatuses, reviewWithProvider, ProviderRequestError } = require('../lib/ai/providerRouter');
 const { guardRequest, MAX_BODY_BYTES } = require('../lib/security/requestGuards');
 
 const ALLOWED_ASSETS = ['XAUUSD', 'EUR/USD', 'EUR/JPY', 'USD/JPY', 'GBP/USD', 'GBP/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'US Oil', 'XAGUSD', 'BTC/USD'];
@@ -84,7 +84,11 @@ function normalizeError(error) {
     };
   }
 
-  return { message: 'Provider request failed', status: 502 };
+  if (error instanceof ProviderRequestError || error.name === 'ProviderRequestError') {
+    return { message: error.message, status: error.status && Number(error.status) >= 400 ? 502 : 502 };
+  }
+
+  return { message: 'Provider request failed. Check the selected API key, billing, model name, and provider limits.', status: 502 };
 }
 
 module.exports = async function handler(req, res) {
