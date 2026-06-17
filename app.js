@@ -385,7 +385,7 @@ function fillJournalFromAnalysis() {
   $('jBias').value = lastAnalysis.bias;
   $('jConfidence').value = lastAnalysis.confidence;
   $('jScore').value = lastAnalysis.score;
-  $('jModel').value = lastAnalysis.model;
+  $('jModel').value = analysisProviderSummary(lastAnalysis);
   $('jEntry').value = lastAnalysis.entryZone;
   $('jSl').value = lastAnalysis.stopLoss;
   $('jTp1').value = lastAnalysis.takeProfits.tp1 || '';
@@ -393,7 +393,7 @@ function fillJournalFromAnalysis() {
   $('jTp3').value = lastAnalysis.takeProfits.tp3 || '';
   $('jRr').value = lastAnalysis.riskReward;
   $('jReasons').value = lastAnalysis.reasons.join('\n');
-  $('jAiDecision').value = `${lastAnalysis.decision}. ${lastAnalysis.riskWarning}\nEconomic risk: ${lastAnalysis.economicRisk}\nInvalidations: ${lastAnalysis.invalidations.join('; ')}`;
+  $('jAiDecision').value = analysisDecisionSummary(lastAnalysis);
   showToast('AI result copied into journal form. Review before saving.', 'success');
 }
 
@@ -409,7 +409,7 @@ function buildJournalEntryFromAnalysis() {
     bias: lastAnalysis.bias,
     confidence: lastAnalysis.confidence,
     score: lastAnalysis.score,
-    model: lastAnalysis.model,
+    model: analysisProviderSummary(lastAnalysis),
     entry: lastAnalysis.entryZone,
     sl: lastAnalysis.stopLoss,
     tp1: lastAnalysis.takeProfits.tp1 || '',
@@ -418,9 +418,26 @@ function buildJournalEntryFromAnalysis() {
     rr: lastAnalysis.riskReward,
     result: 'Pending',
     reasons: lastAnalysis.reasons.join('\n'),
-    aiDecision: `${lastAnalysis.decision}. ${lastAnalysis.riskWarning}\nEconomic risk: ${lastAnalysis.economicRisk}\nInvalidations: ${lastAnalysis.invalidations.join('; ')}`,
+    aiDecision: analysisDecisionSummary(lastAnalysis),
     notes: ''
   });
+}
+
+function analysisProviderSummary(analysis) {
+  const primary = [analysis.providerUsed, analysis.modelUsed || analysis.model].filter(Boolean).join(' — ');
+  const reviewer = analysis.review?.providerUsed ? `Reviewer: ${analysis.review.providerUsed}${analysis.review.modelUsed ? ` — ${analysis.review.modelUsed}` : ''}` : 'Reviewer: None';
+  return [primary || analysis.model || 'Unknown provider', reviewer].join(' | ');
+}
+
+function analysisDecisionSummary(analysis) {
+  return [
+    `${analysis.decision}. ${analysis.riskWarning}`,
+    `Primary provider: ${analysis.providerUsed || 'Unknown'}${analysis.modelUsed ? ` (${analysis.modelUsed})` : ''}`,
+    analysis.review?.providerUsed ? `Review provider: ${analysis.review.providerUsed}${analysis.review.modelUsed ? ` (${analysis.review.modelUsed})` : ''}` : 'Review provider: None',
+    analysis.reviewerNotes ? `Review notes: ${analysis.reviewerNotes}` : '',
+    `Economic risk: ${analysis.economicRisk}`,
+    `Invalidations: ${analysis.invalidations.join('; ')}`
+  ].filter(Boolean).join('\n');
 }
 
 function saveAnalysisToJournal() {
