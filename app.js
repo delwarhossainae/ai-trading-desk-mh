@@ -243,20 +243,38 @@ async function runAiAnalysis() {
   renderLoadingResult();
   try {
     const asset = selectedAsset();
-    const timeframe = timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value;
-    const basePayload = { asset: asset.short, assetLabel: asset.label, tradingViewSymbol: asset.tv, assetClass: asset.assetClass, timeframe, strategyMode: $('strategyMode').value, riskProfile: $('riskProfile').value, analysisDepth: $('analysisDepth').value, primaryProvider: $('primaryProvider').value, reviewProvider: $('reviewProvider').value };
-    const [marketData, economicEvents] = await Promise.all([postJson('/api/market-data', basePayload), postJson('/api/economic-events', basePayload)]);
-    updateAssetInfoPanel(marketData.message || (marketData.configured ? 'Market data provider checked.' : 'Market data API is not configured.'));
-    const response = await postJson('/api/analyze', { ...basePayload, marketData, economicRisk: economicEvents });
-    if (response.providerStatuses) renderProviderStatuses(response.providerStatuses);
-    if (!response || response.ok === false || !response.analysis) throw new Error(response?.message || 'AI analysis failed.');
-    lastAnalysis = normalizeAnalysis(response.analysis, { ...basePayload, marketData, economicEvents, review: response.review });
-    if (response.review?.message) $('analysisError').textContent = response.review.message;
+    const analysisPayload = {
+      provider: $('primaryProvider').value,
+      reviewer: $('reviewProvider').value,
+      asset: asset.short,
+      strategyMode: $('strategyMode').value,
+      riskProfile: $('riskProfile').value,
+      analysisDepth: $('analysisDepth').value
+    };
+    const response = await postJson('/api/analyze', analysisPayload);
+    if (!response || response.success !== true || !response.analysis) throw new Error(response?.message || 'AI analysis failed.');
+    const contextPayload = {
+      asset: asset.short,
+      assetLabel: asset.label,
+      tradingViewSymbol: asset.tv,
+      assetClass: asset.assetClass,
+      timeframe: timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value,
+      strategyMode: analysisPayload.strategyMode,
+      riskProfile: analysisPayload.riskProfile,
+      analysisDepth: analysisPayload.analysisDepth,
+      primaryProvider: analysisPayload.provider,
+      reviewProvider: analysisPayload.reviewer,
+      marketData: { configured: false, message: 'Current market data was not requested for this analysis run.' },
+      economicEvents: { configured: false, message: 'Latest news/calendar data could not be verified for this analysis run.' },
+      review: null
+    };
+    updateAssetInfoPanel(contextPayload.marketData.message);
+    lastAnalysis = normalizeAnalysis(response.analysis, contextPayload);
     renderAnalysis(lastAnalysis);
     renderAutoScorecard(lastAnalysis.scorecard, lastAnalysis.score);
     $('saveAnalysisToJournal').disabled = false;
     $('reviewAnalysis').disabled = $('reviewProvider').value === 'none';
-    $('lastAnalysisTime').textContent = `Last analysis: ${new Date(lastAnalysis.generatedAt).toLocaleString()}`;
+    $('lastAnalysisTime').textContent = `Last analysis: ${new Date(response.timestamp || lastAnalysis.generatedAt).toLocaleString()}`;
     setApiStatus('success', 'API status: analysis complete');
     showToast('AI analysis complete.', 'success');
   } catch (error) {
