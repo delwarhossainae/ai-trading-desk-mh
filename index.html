@@ -98,8 +98,8 @@
               <span id="apiStatus" class="status-pill neutral" role="status" aria-live="polite">API status: idle</span>
             </div>
             <div class="analysis-controls provider-controls">
-              <label>Primary AI Analyzer <select id="primaryProvider"><option value="openai" selected>ChatGPT / OpenAI</option></select></label>
-              <label>Second Opinion Reviewer <select id="reviewProvider"><option value="none" selected>None</option><option value="openai">ChatGPT / OpenAI</option></select></label>
+              <label>Primary AI Analyzer <select id="primaryProvider"><option value="openai" selected>ChatGPT / OpenAI</option><option value="anthropic">Claude / Anthropic</option><option value="gemini">Google Gemini</option><option value="xai">Grok / xAI</option><option value="microsoft">Microsoft / Azure AI</option></select></label>
+              <label>Second Opinion Reviewer <select id="reviewProvider"><option value="none" selected>None</option><option value="openai">ChatGPT / OpenAI</option><option value="anthropic">Claude / Anthropic</option><option value="gemini">Google Gemini</option><option value="xai">Grok / xAI</option><option value="microsoft">Microsoft / Azure AI</option></select></label>
               <div id="providerStatusBadges" class="provider-status-badges" aria-live="polite"></div>
             </div>
             <div class="analysis-controls">
@@ -171,5 +171,36 @@
   </div>
   <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const providerOptions = [
+        ['openai', 'ChatGPT / OpenAI'],
+        ['anthropic', 'Claude / Anthropic'],
+        ['gemini', 'Google Gemini'],
+        ['xai', 'Grok / xAI'],
+        ['microsoft', 'Microsoft / Azure AI']
+      ];
+
+      const primaryProvider = document.getElementById('primaryProvider');
+      const reviewProvider = document.getElementById('reviewProvider');
+
+      if (primaryProvider) {
+        primaryProvider.innerHTML = providerOptions.map(([value, label], index) => `<option value="${value}"${index === 0 ? ' selected' : ''}>${label}</option>`).join('');
+      }
+
+      if (reviewProvider) {
+        reviewProvider.innerHTML = '<option value="none" selected>None</option>' + providerOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+      }
+
+      fetch('/api/status')
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => {
+          if (data && data.success && data.statuses && typeof renderProviderStatuses === 'function') {
+            renderProviderStatuses(data.statuses);
+          }
+        })
+        .catch(() => {});
+    });
+  </script>
 </body>
 </html>
