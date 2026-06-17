@@ -1,4 +1,6 @@
 const { providers, providerStatuses, reviewWithProvider, ProviderRequestError } = require('../lib/ai/providerRouter');
+const { getMarketData } = require('../lib/providers/marketDataProvider');
+const { getEconomicEvents } = require('../lib/providers/economicEventsProvider');
 const { guardRequest, MAX_BODY_BYTES } = require('../lib/security/requestGuards');
 
 const ALLOWED_ASSETS = ['XAUUSD', 'EUR/USD', 'EUR/JPY', 'USD/JPY', 'GBP/USD', 'GBP/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'US Oil', 'XAGUSD', 'BTC/USD'];
@@ -51,9 +53,9 @@ function validateAnalyzeBody(body) {
     strategyMode: safeString(body.strategyMode),
     riskProfile: safeString(body.riskProfile),
     analysisDepth: safeString(body.analysisDepth),
-    marketData: body.marketData && typeof body.marketData === 'object' && !Array.isArray(body.marketData) ? body.marketData : { configured: false, message: 'Current market data was not requested for this analysis run.' },
-    economicEvents: body.economicEvents && typeof body.economicEvents === 'object' && !Array.isArray(body.economicEvents) ? body.economicEvents : { configured: false, message: 'Latest news/calendar data could not be verified for this analysis run.' },
-    economicRisk: body.economicRisk || body.economicEvents || { configured: false, message: 'Latest news/calendar data could not be verified for this analysis run.' },
+    marketData: body.marketData && typeof body.marketData === 'object' && !Array.isArray(body.marketData) ? body.marketData : null,
+    economicEvents: body.economicEvents && typeof body.economicEvents === 'object' && !Array.isArray(body.economicEvents) ? body.economicEvents : null,
+    economicRisk: body.economicRisk || null,
     manualPrompt: safeString(body.manualPrompt)
   };
 
@@ -91,6 +93,39 @@ function normalizeError(error) {
   return { message: 'Provider request failed. Check the selected API key, billing, model name, and provider limits.', status: 502 };
 }
 
+async function loadAnalysisContext(payload) {
+  const contextRequest = {
+    asset: payload.asset,
+    assetLabel: payload.assetLabel,
+    tradingViewSymbol: payload.tradingViewSymbol,
+    assetClass: payload.assetClass,
+    timeframe: payload.timeframe,
+    strategyMode: payload.strategyMode,
+    riskProfile: payload.riskProfile,
+    analysisDepth: payload.analysisDepth
+  };
+
+  const [marketDataResult, economicEventsResult] = await Promise.allSettled([
+    payload.marketData || getMarketData(contextRequest),
+    payload.economicEvents || getEconomicEvents(contextRequest)
+  ]);
+
+  const marketData = marketDataResult.status === 'fulfilled'
+    ? marketDataResult.value
+    : { ok: false, configured: false, message: 'Market data could not be loaded for this analysis run.', candles: [], lastPrice: null };
+
+  const economicEvents = economicEventsResult.status === 'fulfilled'
+    ? economicEventsResult.value
+    : { ok: false, configured: false, message: 'Economic calendar data could not be loaded for this analysis run.', events: [], riskSummary: 'Latest news/calendar data could not be verified.' };
+
+  return {
+    ...payload,
+    marketData,
+    economicEvents,
+    economicRisk: payload.economicRisk || economicEvents.riskSummary || economicEvents.message || economicEvents
+  };
+}
+
 module.exports = async function handler(req, res) {
   if (guardRequest(req, res)) return;
   if (!String(req.headers['content-type'] || '').toLowerCase().includes('application/json')) {
@@ -98,7 +133,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const payload = validateAnalyzeBody(req.body);
+    const payload = await loadAnalysisContext(validateAnalyzeBody(req.body));
     const analyze = providers[payload.provider];
     if (!analyze) throw new Error('Invalid request body');
 
@@ -116,6 +151,8 @@ module.exports = async function handler(req, res) {
       reviewer: payload.reviewer,
       analysis: { ...analysis, review },
       review,
+      marketData: payload.marketData,
+      economicEvents: payload.economicEvents,
       providerStatuses: providerStatuses(),
       timestamp: new Date().toISOString()
     });
