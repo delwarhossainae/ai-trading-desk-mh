@@ -1,16 +1,20 @@
-const { normalizeAnalysisResult } = require('../lib/safety/tradingRules');
-const { guardRequest } = require('../lib/security/requestGuards');
+const { providers, providerStatuses, reviewWithProvider } = require('../lib/ai/providerRouter');
+const { guardRequest, MAX_BODY_BYTES } = require('../lib/security/requestGuards');
 
 const ALLOWED_ASSETS = ['XAUUSD', 'EUR/USD', 'EUR/JPY', 'USD/JPY', 'GBP/USD', 'GBP/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'US Oil', 'XAGUSD', 'BTC/USD'];
 const ALLOWED_STRATEGY_MODES = ['Scalping', 'Intraday', 'Swing'];
 const ALLOWED_RISK_PROFILES = ['Conservative', 'Balanced', 'Aggressive'];
 const ALLOWED_ANALYSIS_DEPTHS = ['Fast', 'Standard', 'Deep'];
-const ALLOWED_PROVIDERS = ['openai'];
-const ALLOWED_REVIEWERS = ['none', 'openai'];
-const MAX_BODY_BYTES = 24 * 1024;
+const ALLOWED_TIMEFRAMES = ['Monthly', 'Weekly', 'Daily', 'H4', 'H1', 'M30', 'M15', 'M5'];
+const ALLOWED_PROVIDERS = Object.keys(providers);
+const ALLOWED_REVIEWERS = ['none', ...ALLOWED_PROVIDERS];
 
-function jsonError(res, status, message) {
-  return res.status(status).json({ success: false, ok: false, message });
+function jsonError(res, status, message, extra = {}) {
+  return res.status(status).json({ success: false, ok: false, message, ...extra });
+}
+
+function safeString(value, fallback = '') {
+  return typeof value === 'string' ? value.trim() : fallback;
 }
 
 function validateAnalyzeBody(body) {
@@ -18,17 +22,39 @@ function validateAnalyzeBody(body) {
     throw new Error('Invalid request body');
   }
 
-  const allowedKeys = new Set(['provider', 'reviewer', 'asset', 'strategyMode', 'riskProfile', 'analysisDepth', 'manualPrompt']);
+  const allowedKeys = new Set([
+    'provider',
+    'reviewer',
+    'asset',
+    'assetLabel',
+    'tradingViewSymbol',
+    'assetClass',
+    'timeframe',
+    'strategyMode',
+    'riskProfile',
+    'analysisDepth',
+    'marketData',
+    'economicEvents',
+    'economicRisk',
+    'manualPrompt'
+  ]);
   if (Object.keys(body).some((key) => !allowedKeys.has(key))) throw new Error('Invalid request body');
 
   const payload = {
-    provider: typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '',
-    reviewer: typeof body.reviewer === 'string' ? body.reviewer.trim().toLowerCase() : 'none',
-    asset: typeof body.asset === 'string' ? body.asset.trim() : '',
-    strategyMode: typeof body.strategyMode === 'string' ? body.strategyMode.trim() : '',
-    riskProfile: typeof body.riskProfile === 'string' ? body.riskProfile.trim() : '',
-    analysisDepth: typeof body.analysisDepth === 'string' ? body.analysisDepth.trim() : '',
-    manualPrompt: typeof body.manualPrompt === 'string' ? body.manualPrompt.trim() : ''
+    provider: safeString(body.provider).toLowerCase(),
+    reviewer: safeString(body.reviewer, 'none').toLowerCase(),
+    asset: safeString(body.asset),
+    assetLabel: safeString(body.assetLabel || body.asset),
+    tradingViewSymbol: safeString(body.tradingViewSymbol),
+    assetClass: safeString(body.assetClass),
+    timeframe: safeString(body.timeframe, 'M15'),
+    strategyMode: safeString(body.strategyMode),
+    riskProfile: safeString(body.riskProfile),
+    analysisDepth: safeString(body.analysisDepth),
+    marketData: body.marketData && typeof body.marketData === 'object' && !Array.isArray(body.marketData) ? body.marketData : { configured: false, message: 'Current market data was not requested for this analysis run.' },
+    economicEvents: body.economicEvents && typeof body.economicEvents === 'object' && !Array.isArray(body.economicEvents) ? body.economicEvents : { configured: false, message: 'Latest news/calendar data could not be verified for this analysis run.' },
+    economicRisk: body.economicRisk || body.economicEvents || { configured: false, message: 'Latest news/calendar data could not be verified for this analysis run.' },
+    manualPrompt: safeString(body.manualPrompt)
   };
 
   if (!payload.provider) throw new Error('Missing provider');
@@ -36,59 +62,29 @@ function validateAnalyzeBody(body) {
   if (!ALLOWED_PROVIDERS.includes(payload.provider)) throw new Error('Invalid request body');
   if (!ALLOWED_REVIEWERS.includes(payload.reviewer)) throw new Error('Invalid request body');
   if (!ALLOWED_ASSETS.includes(payload.asset)) throw new Error('Invalid request body');
+  if (!ALLOWED_TIMEFRAMES.includes(payload.timeframe)) throw new Error('Invalid request body');
   if (!ALLOWED_STRATEGY_MODES.includes(payload.strategyMode)) throw new Error('Invalid request body');
   if (!ALLOWED_RISK_PROFILES.includes(payload.riskProfile)) throw new Error('Invalid request body');
   if (!ALLOWED_ANALYSIS_DEPTHS.includes(payload.analysisDepth)) throw new Error('Invalid request body');
-  if (payload.manualPrompt && (payload.manualPrompt.length > 5000 || /[<>`$\\]/.test(payload.manualPrompt))) throw new Error('Invalid request body');
+  if ([payload.assetLabel, payload.tradingViewSymbol, payload.assetClass, payload.manualPrompt].some((value) => /[<>`$\\]/.test(value))) throw new Error('Invalid request body');
+  if (payload.manualPrompt.length > 5000) throw new Error('Invalid request body');
 
   return payload;
 }
 
-function buildAutomaticPrompt(payload) {
-  if (payload.manualPrompt) return payload.manualPrompt;
-
-  return [
-    'You are a professional trading analysis assistant for education and decision support only.',
-    'Do not execute trades. Do not add auto-trading instructions. Do not guarantee profit. Do not say 100% sure.',
-    'Do not force a BUY or SELL setup. Always allow: No Trade Setup — wait for better price action confirmation.',
-    'No BUY or SELL setup unless the score is 8/10 or higher.',
-    'Always include confirmation, invalidation, risk management, and news risk.',
-    'No chart upload, live price, screenshot, current market data, or verified latest calendar/news data was provided for this request.',
-    'Clearly state that current market data is missing and latest news/calendar data could not be verified.',
-    'Build the analysis only from these selected dashboard values:',
-    `Provider: ${payload.provider}`,
-    `Reviewer: ${payload.reviewer}`,
-    `Asset: ${payload.asset}`,
-    `Strategy mode: ${payload.strategyMode}`,
-    `Risk profile: ${payload.riskProfile}`,
-    `Analysis depth: ${payload.analysisDepth}`,
-    '',
-    'Return only valid JSON with keys: decision, bias, confidence, score, entryZone, stopLoss, takeProfits, riskReward, timeframeSummary, marketStructure, economicRisk, reasons, invalidations, riskWarning, scorecard.'
-  ].join('\n');
-}
-
-function extractOutputText(data) {
-  return data.output_text || data.output?.flatMap((item) => item.content || []).map((item) => item.text || '').join('') || '{}';
-}
-
-async function requestOpenAI(payload) {
-  if (!process.env.OPENAI_API_KEY) throw new Error('Missing API key');
-
-  const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: JSON.stringify({ model, input: buildAutomaticPrompt(payload), temperature: 0.2, text: { format: { type: 'json_object' } } })
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error('Provider request failed');
-
-  try {
-    const parsed = JSON.parse(extractOutputText(data));
-    return normalizeAnalysisResult({ ...parsed, model }, { model });
-  } catch (error) {
-    throw new Error('Provider request failed');
+function normalizeError(error) {
+  if (['Missing provider', 'Missing asset', 'Invalid request body'].includes(error.message)) {
+    return { message: error.message, status: 400 };
   }
+
+  if (error.message === 'Missing API key' || error.code === 'PROVIDER_NOT_CONFIGURED') {
+    return {
+      message: error.message || 'Selected AI provider is not configured. Add the required API key in backend environment variables.',
+      status: 503
+    };
+  }
+
+  return { message: 'Provider request failed', status: 502 };
 }
 
 module.exports = async function handler(req, res) {
@@ -99,13 +95,28 @@ module.exports = async function handler(req, res) {
 
   try {
     const payload = validateAnalyzeBody(req.body);
-    const analysis = await requestOpenAI(payload);
-    return res.status(200).json({ success: true, ok: true, provider: 'openai', analysis, timestamp: new Date().toISOString() });
+    const analyze = providers[payload.provider];
+    if (!analyze) throw new Error('Invalid request body');
+
+    const analysis = await analyze(payload);
+    let review = null;
+
+    if (payload.reviewer && payload.reviewer !== 'none') {
+      review = await reviewWithProvider(payload.reviewer, { ...analysis, ...payload });
+    }
+
+    return res.status(200).json({
+      success: true,
+      ok: true,
+      provider: payload.provider,
+      reviewer: payload.reviewer,
+      analysis: { ...analysis, review },
+      review,
+      providerStatuses: providerStatuses(),
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
-    const message = ['Missing provider', 'Missing asset', 'Missing API key', 'Provider request failed', 'Invalid request body'].includes(error.message)
-      ? error.message
-      : 'Provider request failed';
-    const status = message === 'Missing API key' ? 503 : (message === 'Provider request failed' ? 502 : 400);
-    return jsonError(res, status, message);
+    const normalized = normalizeError(error);
+    return jsonError(res, normalized.status, normalized.message, { providerStatuses: providerStatuses() });
   }
 };
