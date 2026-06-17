@@ -19,6 +19,15 @@ const assets = [
 ];
 
 const timeframeLabels = { '1M': 'Monthly', '1W': 'Weekly', D: 'Daily', 240: 'H4', 60: 'H1', 30: 'M30', 15: 'M15', 5: 'M5' };
+const providerLabels = { openai: 'OpenAI', anthropic: 'Anthropic', xai: 'Grok', gemini: 'Gemini', microsoft: 'Microsoft' };
+const defaultProviderStatuses = {
+  openai: { label: 'ChatGPT / OpenAI', configured: null, message: 'Not checked' },
+  anthropic: { label: 'Claude / Anthropic', configured: null, message: 'Not checked' },
+  xai: { label: 'Grok / xAI', configured: null, message: 'Not checked' },
+  gemini: { label: 'Google Gemini', configured: null, message: 'Not checked' },
+  microsoft: { label: 'Microsoft Copilot / Microsoft AI', configured: null, message: 'Not checked' }
+};
+
 const scoreCriteria = [
   ['higherTimeframeAlignment', 'Higher-timeframe alignment'],
   ['marketStructure', 'Market structure'],
@@ -40,6 +49,7 @@ function init() {
   bindEvents();
   updateThemeButton();
   renderAutoScorecard();
+  renderProviderStatuses(defaultProviderStatuses);
   setDefaultJournalDate();
   renderJournal();
   updateAssetInfoPanel();
@@ -234,17 +244,18 @@ async function runAiAnalysis() {
   try {
     const asset = selectedAsset();
     const timeframe = timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value;
-    const basePayload = { asset: asset.short, assetLabel: asset.label, tradingViewSymbol: asset.tv, assetClass: asset.assetClass, timeframe, strategyMode: $('strategyMode').value, riskProfile: $('riskProfile').value, analysisDepth: $('analysisDepth').value };
+    const basePayload = { asset: asset.short, assetLabel: asset.label, tradingViewSymbol: asset.tv, assetClass: asset.assetClass, timeframe, strategyMode: $('strategyMode').value, riskProfile: $('riskProfile').value, analysisDepth: $('analysisDepth').value, primaryProvider: $('primaryProvider').value, reviewProvider: $('reviewProvider').value };
     const [marketData, economicEvents] = await Promise.all([postJson('/api/market-data', basePayload), postJson('/api/economic-events', basePayload)]);
     updateAssetInfoPanel(marketData.message || (marketData.configured ? 'Market data provider checked.' : 'Market data API is not configured.'));
-    const analysis = await postJson('/api/analyze', { ...basePayload, marketData, economicEvents });
-    if (!analysis || (!analysis.decision && analysis.ok === false)) throw new Error(analysis?.message || 'AI analysis failed.');
-    lastAnalysis = normalizeAnalysis(analysis, { ...basePayload, marketData, economicEvents });
-    if (analysis.ok === false && analysis.message) $('analysisError').textContent = analysis.message;
+    const response = await postJson('/api/analyze', { ...basePayload, marketData, economicRisk: economicEvents });
+    if (response.providerStatuses) renderProviderStatuses(response.providerStatuses);
+    if (!response || response.ok === false || !response.analysis) throw new Error(response?.message || 'AI analysis failed.');
+    lastAnalysis = normalizeAnalysis(response.analysis, { ...basePayload, marketData, economicEvents, review: response.review });
+    if (response.review?.message) $('analysisError').textContent = response.review.message;
     renderAnalysis(lastAnalysis);
     renderAutoScorecard(lastAnalysis.scorecard, lastAnalysis.score);
     $('saveAnalysisToJournal').disabled = false;
-    $('reviewAnalysis').disabled = false;
+    $('reviewAnalysis').disabled = $('reviewProvider').value === 'none';
     $('lastAnalysisTime').textContent = `Last analysis: ${new Date(lastAnalysis.generatedAt).toLocaleString()}`;
     setApiStatus('success', 'API status: analysis complete');
     showToast('AI analysis complete.', 'success');
@@ -262,24 +273,8 @@ async function runAiAnalysis() {
 }
 
 async function reviewAnalysis() {
-  if (!lastAnalysis) return;
-  setApiStatus('loading', 'API status: reviewing');
-  try {
-    const review = await postJson('/api/review', { analysis: lastAnalysis });
-    if (review.configured === false) {
-      $('reviewAnalysis').disabled = true;
-      showToast(review.message || 'Claude review is not configured.', 'error');
-      setApiStatus('neutral', 'API status: Claude review unavailable');
-      return;
-    }
-    const notes = Array.isArray(review.notes) ? review.notes.join('\n- ') : review.notes || 'No reviewer notes returned.';
-    lastAnalysis.reviewerNotes = notes;
-    renderAnalysis(lastAnalysis);
-    setApiStatus('success', 'API status: review complete');
-  } catch (error) {
-    showToast(error.message || 'Claude review failed.', 'error');
-    setApiStatus('error', 'API status: review failed');
-  }
+  if (!lastAnalysis || $('reviewProvider').value === 'none') return;
+  await runAiAnalysis();
 }
 
 async function postJson(url, payload) {
@@ -299,7 +294,7 @@ async function postJson(url, payload) {
 function normalizeAnalysis(raw, context) {
   const score = clampNumber(raw.score, 0, 10);
   const safeDecision = enforceDecision(raw.decision, score);
-  return { ...raw, ...context, decision: safeDecision, bias: allowedValue(raw.bias, ['Bullish', 'Bearish', 'Neutral'], 'Neutral'), confidence: clampNumber(raw.confidence, 0, 100), score, entryZone: raw.entryZone || 'Not provided — market data may be missing.', stopLoss: raw.stopLoss || 'Not provided.', takeProfits: raw.takeProfits || {}, riskReward: raw.riskReward || 'Not provided.', reasons: Array.isArray(raw.reasons) ? raw.reasons : [], invalidations: Array.isArray(raw.invalidations) ? raw.invalidations : [], economicRisk: raw.economicRisk || 'Latest news/calendar data could not be verified.', riskWarning: raw.riskWarning || 'This dashboard provides AI-assisted analysis for education and decision support only. It does not guarantee profit and does not execute trades.', scorecard: normalizeScorecard(raw.scorecard), model: raw.model || 'unknown', generatedAt: raw.generatedAt || new Date().toISOString() };
+  return { ...raw, ...context, decision: safeDecision, bias: allowedValue(raw.bias, ['Bullish', 'Bearish', 'Neutral'], 'Neutral'), confidence: clampNumber(raw.confidence, 0, 100), score, entryZone: raw.entryZone || 'Not provided — market data may be missing.', stopLoss: raw.stopLoss || 'Not provided.', takeProfits: raw.takeProfits || {}, riskReward: raw.riskReward || 'Not provided.', reasons: Array.isArray(raw.reasons) ? raw.reasons : [], invalidations: Array.isArray(raw.invalidations) ? raw.invalidations : [], economicRisk: raw.economicRisk || 'Latest news/calendar data could not be verified.', riskWarning: raw.riskWarning || 'This dashboard provides AI-assisted analysis for education and decision support only. It does not guarantee profit and does not execute trades.', scorecard: normalizeScorecard(raw.scorecard), model: raw.model || raw.modelUsed || 'unknown', providerUsed: raw.providerUsed || providerLabels[context.primaryProvider] || 'Unknown', modelUsed: raw.modelUsed || raw.model || 'unknown', review: context.review || null, reviewerNotes: formatReviewNotes(context.review), generatedAt: raw.generatedAt || new Date().toISOString() };
 }
 
 function enforceDecision(decision, score) {
@@ -315,6 +310,28 @@ function normalizeScorecard(scorecard = {}) {
 function clampNumber(value, min, max) { const number = Number(value); return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : min; }
 function allowedValue(value, allowed, fallback) { return allowed.includes(value) ? value : fallback; }
 
+function formatReviewNotes(review) {
+  if (!review || reviewProviderIsEmpty(review)) return '';
+  if (review.message) return review.message;
+  const notes = Array.isArray(review.notes) ? review.notes : [review.notes].filter(Boolean);
+  const risks = Array.isArray(review.riskWarnings) ? review.riskWarnings : [];
+  const contradictions = Array.isArray(review.contradictions) ? review.contradictions : [];
+  return [...notes, ...risks, ...contradictions].filter(Boolean).join('\n- ');
+}
+
+function reviewProviderIsEmpty(review) { return !review || review === 'none'; }
+
+function renderProviderStatuses(statuses = defaultProviderStatuses) {
+  const container = $('providerStatusBadges');
+  if (!container) return;
+  container.innerHTML = Object.entries(defaultProviderStatuses).map(([key]) => {
+    const status = statuses[key] || defaultProviderStatuses[key];
+    const configured = status.configured === true;
+    const missing = status.configured === false;
+    return `<span class="provider-badge ${configured ? 'configured' : missing ? 'missing' : 'neutral'}"><strong>${escapeHtml(providerLabels[key])}:</strong> ${escapeHtml(status.message || (configured ? 'Configured' : 'Missing key'))}</span>`;
+  }).join('');
+}
+
 function renderLoadingResult() { $('analysisResult').innerHTML = '<div class="empty-state result-empty"><strong>Running analysis...</strong><span>Fetching configured market data, checking economic risk, and calling backend AI analysis.</span></div>'; }
 function renderErrorResult(message) { $('analysisResult').innerHTML = `<div class="empty-state result-empty error-result"><strong>Analysis unavailable.</strong><span>${escapeHtml(message)}</span></div>`; }
 
@@ -322,6 +339,7 @@ function renderAnalysis(result) {
   const decisionClass = result.decision.toLowerCase().replaceAll(' ', '-');
   $('analysisResult').innerHTML = `
     <article class="result-card hero-result"><span class="decision-badge ${decisionClass}">${escapeHtml(result.decision)}</span><h3>${escapeHtml(result.bias)} bias · ${escapeHtml(String(result.confidence))}% confidence</h3><p>${escapeHtml(result.riskWarning)}</p></article>
+    <article class="result-card"><span>Primary provider</span><strong>${escapeHtml(result.providerUsed)}</strong><small>${escapeHtml(result.modelUsed)}</small></article>
     <article class="result-card"><span>Trade score</span><strong>${escapeHtml(String(result.score))} / 10</strong><small>${escapeHtml(scoreVerdict(result.score))}</small></article>
     <article class="result-card"><span>Entry zone</span><strong>${escapeHtml(result.entryZone)}</strong></article>
     <article class="result-card"><span>Stop loss idea</span><strong>${escapeHtml(result.stopLoss)}</strong></article>
@@ -331,7 +349,7 @@ function renderAnalysis(result) {
     <article class="result-card wide"><span>Invalid setup reasons</span><ul>${renderList(result.invalidations)}</ul></article>
     <article class="result-card wide"><span>Economic/news risk warning</span><p>${escapeHtml(result.economicRisk)}</p></article>
     <article class="result-card wide"><span>Timeframe / structure summary</span><p>${escapeHtml(result.timeframeSummary || '')}</p><p>${escapeHtml(result.marketStructure || '')}</p></article>
-    ${result.reviewerNotes ? `<article class="result-card wide"><span>Claude review notes</span><p>${escapeHtml(result.reviewerNotes)}</p></article>` : ''}
+    ${result.review ? `<article class="result-card wide reviewer-card"><span>Reviewer notes${result.review.providerUsed ? ` · ${escapeHtml(String(result.review.providerUsed))}` : ''}</span><p>${escapeHtml(result.reviewerNotes || 'No reviewer notes returned.')}</p></article>` : ''}
   `;
 }
 
