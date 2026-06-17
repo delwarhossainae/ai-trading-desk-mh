@@ -94,8 +94,13 @@
 
           <section class="workspace-panel glass-card analysis-panel" aria-labelledby="analysisTitle">
             <div class="section-head">
-              <div><p class="eyebrow">Automatic AI Analysis</p><h2 id="analysisTitle">Run Secure Serverless Analysis</h2></div>
+              <div><p class="eyebrow">Automatic AI Analysis</p><h2 id="analysisTitle">Run Secure Serverless Analysis</h2><p class="section-helper">Run secure serverless analysis using your selected AI provider. API keys stay protected in backend environment variables.</p></div>
               <span id="apiStatus" class="status-pill neutral" role="status" aria-live="polite">API status: idle</span>
+            </div>
+            <div class="analysis-controls provider-controls">
+              <label>Primary AI Analyzer <select id="primaryProvider"><option value="openai" selected>ChatGPT / OpenAI</option><option value="anthropic">Claude / Anthropic</option><option value="xai">Grok / xAI</option><option value="gemini">Google Gemini</option><option value="microsoft">Microsoft Copilot / Microsoft AI</option></select></label>
+              <label>Second Opinion Reviewer <select id="reviewProvider"><option value="none">None</option><option value="openai">ChatGPT / OpenAI</option><option value="anthropic" selected>Claude / Anthropic</option><option value="xai">Grok / xAI</option><option value="gemini">Google Gemini</option><option value="microsoft">Microsoft Copilot / Microsoft AI</option></select></label>
+              <div id="providerStatusBadges" class="provider-status-badges" aria-live="polite"></div>
             </div>
             <div class="analysis-controls">
               <label>Analysis asset <select id="analysisAssetSelect"></select></label>
@@ -105,7 +110,7 @@
             </div>
             <div class="analysis-actions">
               <button id="runAnalysis" class="primary-btn glow-action" type="button">Run AI Analysis</button>
-              <button id="reviewAnalysis" class="ghost-btn" type="button" disabled>Claude Review</button>
+              <button id="reviewAnalysis" class="ghost-btn" type="button" disabled>Run Selected Review</button>
               <button id="saveAnalysisToJournal" class="ghost-btn" type="button" disabled>Save AI Result to Journal</button>
               <span id="lastAnalysisTime" class="last-analysis">Last analysis: never</span>
             </div>
