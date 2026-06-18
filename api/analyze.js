@@ -1,9 +1,9 @@
 const { providers, providerStatuses, reviewWithProvider, ProviderRequestError } = require('../lib/ai/providerRouter');
-const { getMarketData } = require('../lib/providers/marketDataProvider');
-const { getEconomicEvents } = require('../lib/providers/economicEventsProvider');
+const { buildMarketContext } = require('../lib/market/marketContextBuilder');
 const { guardRequest, MAX_BODY_BYTES } = require('../lib/security/requestGuards');
+const { ALLOWED_ASSET_INPUTS, getAssetConfig } = require('../lib/config/assets');
 
-const ALLOWED_ASSETS = ['XAUUSD', 'EUR/USD', 'EUR/JPY', 'USD/JPY', 'GBP/USD', 'GBP/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'US Oil', 'XAGUSD', 'BTC/USD'];
+const ALLOWED_ASSETS = ALLOWED_ASSET_INPUTS;
 const ALLOWED_STRATEGY_MODES = ['Scalping', 'Intraday', 'Swing'];
 const ALLOWED_RISK_PROFILES = ['Conservative', 'Balanced', 'Aggressive'];
 const ALLOWED_ANALYSIS_DEPTHS = ['Fast', 'Standard', 'Deep'];
@@ -63,7 +63,7 @@ function validateAnalyzeBody(body) {
   if (!payload.asset) throw new Error('Missing asset');
   if (!ALLOWED_PROVIDERS.includes(payload.provider)) throw new Error('Invalid request body');
   if (!ALLOWED_REVIEWERS.includes(payload.reviewer)) throw new Error('Invalid request body');
-  if (!ALLOWED_ASSETS.includes(payload.asset)) throw new Error('Invalid request body');
+  if (!getAssetConfig(payload.asset)) throw new Error('Invalid request body');
   if (!ALLOWED_TIMEFRAMES.includes(payload.timeframe)) throw new Error('Invalid request body');
   if (!ALLOWED_STRATEGY_MODES.includes(payload.strategyMode)) throw new Error('Invalid request body');
   if (!ALLOWED_RISK_PROFILES.includes(payload.riskProfile)) throw new Error('Invalid request body');
@@ -116,35 +116,33 @@ function normalizeError(error) {
 }
 
 async function loadAnalysisContext(payload) {
-  const contextRequest = {
-    asset: payload.asset,
-    assetLabel: payload.assetLabel,
-    tradingViewSymbol: payload.tradingViewSymbol,
-    assetClass: payload.assetClass,
-    timeframe: payload.timeframe,
-    strategyMode: payload.strategyMode,
-    riskProfile: payload.riskProfile,
-    analysisDepth: payload.analysisDepth
-  };
-
-  const [marketDataResult, economicEventsResult] = await Promise.allSettled([
-    payload.marketData || getMarketData(contextRequest),
-    payload.economicEvents || getEconomicEvents(contextRequest)
-  ]);
-
-  const marketData = marketDataResult.status === 'fulfilled'
-    ? marketDataResult.value
-    : { ok: false, configured: false, message: 'Market data could not be loaded for this analysis run.', candles: [], lastPrice: null };
-
-  const economicEvents = economicEventsResult.status === 'fulfilled'
-    ? economicEventsResult.value
-    : { ok: false, configured: false, message: 'Economic calendar data could not be loaded for this analysis run.', events: [], riskSummary: 'Latest news/calendar data could not be verified.' };
-
+  const marketContext = await buildMarketContext(payload);
   return {
     ...payload,
-    marketData,
-    economicEvents,
-    economicRisk: payload.economicRisk || economicEvents.riskSummary || economicEvents.message || economicEvents
+    asset: marketContext.canonicalAsset,
+    assetLabel: marketContext.asset,
+    assetClass: marketContext.assetClass,
+    marketContext,
+    marketData: { ok: marketContext.ok, configured: marketContext.configured, provider: marketContext.provider, lastPrice: marketContext.currentPrice, message: marketContext.dataCompleteness.warnings.join(' ') || `Server market context loaded for ${marketContext.canonicalAsset}.` },
+    economicEvents: { ok: marketContext.economicRisk.verified, configured: marketContext.economicRisk.configured, events: marketContext.economicRisk.events, riskSummary: marketContext.economicRisk.summary },
+    economicRisk: marketContext.economicRisk
+  };
+}
+
+function enforceMarketContextSafety(analysis, marketContext) {
+  const permission = marketContext?.riskFilters?.finalPermission || 'No Trade';
+  if (permission === 'Trade eligible') return analysis;
+  const cap = permission === 'Watch only' ? 7 : 5;
+  return {
+    ...analysis,
+    decision: permission === 'Watch only' ? 'Watch' : 'No Trade',
+    confidence: Math.min(Number(analysis?.confidence) || 0, permission === 'Watch only' ? 65 : 50),
+    score: Math.min(Number(analysis?.score) || 0, cap),
+    entryZone: 'Not actionable — server-verified market context is incomplete.',
+    stopLoss: 'Not applicable without complete verified market data.',
+    takeProfits: [],
+    riskReward: 'Not actionable while backend risk filters are No Trade or Watch only.',
+    dataQualityWarning: (marketContext?.riskFilters?.warnings || []).join(' ') || 'Market context is incomplete.'
   };
 }
 
@@ -159,7 +157,7 @@ module.exports = async function handler(req, res) {
     const analyze = providers[payload.provider];
     if (!analyze) throw new Error('Invalid request body');
 
-    let analysis = forceNoTradeForMissingMarketData(await analyze(payload), payload.marketData);
+    let analysis = enforceMarketContextSafety(forceNoTradeForMissingMarketData(await analyze(payload), payload.marketData), payload.marketContext);
     let review = null;
 
     if (payload.reviewer && payload.reviewer !== 'none') {
@@ -178,6 +176,7 @@ module.exports = async function handler(req, res) {
       analysis: { ...analysis, review },
       review,
       marketData: payload.marketData,
+      marketContext: payload.marketContext,
       economicEvents: payload.economicEvents,
       providerStatuses: providerStatuses(),
       timestamp: new Date().toISOString()
