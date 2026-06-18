@@ -23,6 +23,66 @@ const assets = [
 
 const timeframeLabels = { '1M': 'Monthly', '1W': 'Weekly', D: 'Daily', 240: 'H4', 60: 'H1', 30: 'M30', 15: 'M15', 5: 'M5' };
 const providerLabels = { openai: 'OpenAI', anthropic: 'Anthropic', xai: 'Grok', gemini: 'Gemini', microsoft: 'Microsoft' };
+const providerPayloadAliases = {
+  openai: 'openai',
+  chatgpt: 'openai',
+  'chatgpt / openai': 'openai',
+  anthropic: 'anthropic',
+  claude: 'anthropic',
+  'claude / anthropic': 'anthropic',
+  xai: 'xai',
+  grok: 'xai',
+  'grok / xai': 'xai',
+  gemini: 'gemini',
+  google: 'gemini',
+  'google gemini': 'gemini',
+  microsoft: 'microsoft',
+  copilot: 'microsoft',
+  'microsoft copilot': 'microsoft',
+  'microsoft ai': 'microsoft',
+  'microsoft / azure ai': 'microsoft',
+  'microsoft copilot / microsoft ai': 'microsoft',
+  none: 'none'
+};
+const assetPayloadAliases = {
+  XAUUSD: 'XAUUSD',
+  'XAUUSD / Gold': 'XAUUSD',
+  Gold: 'XAUUSD',
+  USOIL: 'USOIL',
+  'US Oil': 'USOIL',
+  BTCUSD: 'BTCUSD',
+  'BTC/USD': 'BTCUSD',
+  EURUSD: 'EURUSD',
+  'EUR/USD': 'EURUSD',
+  EURJPY: 'EURJPY',
+  'EUR/JPY': 'EURJPY',
+  EURGBP: 'EURGBP',
+  'EUR/GBP': 'EURGBP',
+  USDJPY: 'USDJPY',
+  'USD/JPY': 'USDJPY',
+  GBPUSD: 'GBPUSD',
+  'GBP/USD': 'GBPUSD',
+  GBPJPY: 'GBPJPY',
+  'GBP/JPY': 'GBPJPY',
+  USDCHF: 'USDCHF',
+  'USD/CHF': 'USDCHF',
+  AUDUSD: 'AUDUSD',
+  'AUD/USD': 'AUDUSD',
+  USDCAD: 'USDCAD',
+  'USD/CAD': 'USDCAD',
+  NZDUSD: 'NZDUSD',
+  'NZD/USD': 'NZDUSD',
+  XAGUSD: 'XAGUSD',
+  'XAGUSD / Silver': 'XAGUSD',
+  Silver: 'XAGUSD'
+};
+const timeframePayloadAliases = { '1M': 'Monthly', MN1: 'Monthly', Monthly: 'Monthly', '1W': 'Weekly', W1: 'Weekly', Weekly: 'Weekly', D: 'Daily', D1: 'Daily', Daily: 'Daily', 240: 'H4', H4: 'H4', 60: 'H1', H1: 'H1', 30: 'M30', M30: 'M30', 15: 'M15', M15: 'M15', 5: 'M5', M5: 'M5' };
+const shouldDebugAnalysisFlow = () => ['localhost', '127.0.0.1', ''].includes(window.location.hostname) || window.location.search.includes('debugAnalysis=true');
+function debugAnalysisFlow(message, value) {
+  if (!shouldDebugAnalysisFlow()) return;
+  if (value === undefined) console.info(message);
+  else console.info(message, value);
+}
 const defaultProviderStatuses = {
   openai: { label: 'ChatGPT / OpenAI', configured: null, message: 'Not checked' },
   anthropic: { label: 'Claude / Anthropic', configured: null, message: 'Not checked' },
@@ -231,8 +291,25 @@ function showCalendarFallback(container) {
   container.innerHTML = '<div class="widget-fallback" role="status">MetaTrader Economic Calendar could not be loaded. <a href="https://www.mql5.com/en/economic-calendar" target="_blank" rel="noopener noreferrer">Open the MQL5 Economic Calendar directly.</a></div>';
 }
 
+
+function normalizeProviderPayloadValue(value, fallback = '') {
+  const raw = String(value || '').trim();
+  const normalized = providerPayloadAliases[raw] || providerPayloadAliases[raw.toLowerCase()];
+  return normalized || fallback || raw.toLowerCase();
+}
+
+function normalizeAssetPayloadValue(value) {
+  const raw = String(value || '').trim();
+  return assetPayloadAliases[raw] || raw.replace('/', '').replace(/\s+/g, '').toUpperCase();
+}
+
+function normalizeTimeframePayloadValue(value) {
+  const raw = String(value || '').trim();
+  return timeframePayloadAliases[raw] || timeframeLabels[raw] || raw;
+}
+
 async function runAiAnalysis() {
-  console.info('Run AI Analysis clicked');
+  debugAnalysisFlow('Run AI Analysis clicked');
   if (isAnalysisRunning) return;
   if (Date.now() < analysisCooldownUntil) {
     const seconds = Math.ceil((analysisCooldownUntil - Date.now()) / 1000);
@@ -251,10 +328,10 @@ async function runAiAnalysis() {
   renderLoadingResult();
   try {
     const asset = selectedAnalysisAsset();
-    const selectedPrimaryProvider = $('primaryProvider').value;
-    const selectedReviewProvider = $('reviewProvider').value;
-    const selectedAssetValue = asset.short;
-    const selectedTimeframe = timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value;
+    const selectedPrimaryProvider = normalizeProviderPayloadValue($('primaryProvider').value);
+    const selectedReviewProvider = normalizeProviderPayloadValue($('reviewProvider').value, 'none');
+    const selectedAssetValue = normalizeAssetPayloadValue(asset.short || asset.label);
+    const selectedTimeframe = normalizeTimeframePayloadValue($('timeframeSelect').value);
     const selectedStrategyMode = $('strategyMode').value;
     const selectedRiskProfile = $('riskProfile').value;
     const selectedAnalysisDepth = $('analysisDepth').value;
@@ -267,9 +344,9 @@ async function runAiAnalysis() {
       riskProfile: selectedRiskProfile,
       analysisDepth: selectedAnalysisDepth
     };
-    console.info('Sending /api/analyze request');
+    debugAnalysisFlow('Payload sent to /api/analyze', analysisPayload);
     const response = await postJson('/api/analyze', analysisPayload);
-    console.info('Received /api/analyze response');
+    debugAnalysisFlow('/api/analyze response success', response?.success === true);
     if (!response || response.success !== true || !response.analysis) {
       const error = new Error(response?.message || 'Analysis temporarily unavailable.');
       error.status = response?.status;
@@ -277,11 +354,11 @@ async function runAiAnalysis() {
       throw error;
     }
     const contextPayload = {
-      asset: asset.short,
+      asset: analysisPayload.asset,
       assetLabel: asset.label,
       tradingViewSymbol: asset.tv,
       assetClass: asset.assetClass,
-      timeframe: timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value,
+      timeframe: analysisPayload.timeframe,
       strategyMode: analysisPayload.strategyMode,
       riskProfile: analysisPayload.riskProfile,
       analysisDepth: analysisPayload.analysisDepth,
@@ -331,6 +408,7 @@ async function postJson(url, payload) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
+    debugAnalysisFlow('/api/analyze response status', response.status);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(data.message || 'Analysis temporarily unavailable.');
@@ -476,6 +554,7 @@ function formatAnalysisError(error) {
     403: 'API origin blocked. Check ALLOWED_ORIGIN in Vercel.',
     429: 'Too many requests. Please wait before trying again.',
     500: 'Analysis temporarily unavailable. Check provider/model/billing/logs.',
+    502: 'Analysis temporarily unavailable. Check provider/model/billing/logs.',
     503: 'Analysis temporarily unavailable. Check provider/model/billing/logs.'
   };
   const base = statusMessages[error.status] || error.message || 'Analysis temporarily unavailable.';
