@@ -69,6 +69,7 @@ function bindEvents() {
   $('timeframeSelect').addEventListener('change', () => { loadTradingViewChart(); updateAssetInfoPanel(); });
   $('runAnalysis').addEventListener('click', runAiAnalysis);
   $('reviewAnalysis').addEventListener('click', reviewAnalysis);
+  $('reviewProvider').addEventListener('change', updateReviewButtonState);
   $('saveAnalysisToJournal').addEventListener('click', saveAnalysisToJournal);
   $('journalForm').addEventListener('submit', addJournalEntry);
   ['filterSymbol', 'filterType', 'filterScoreMin', 'filterScoreMax', 'filterResult', 'filterDateFrom', 'filterDateTo', 'filterNotes'].forEach((id) => {
@@ -132,6 +133,7 @@ function toggleTheme() {
 function updateThemeButton() { $('themeToggle').textContent = currentTheme() === 'dark' ? 'Light Mode' : 'Dark Mode'; }
 function currentTheme() { return document.documentElement.getAttribute('data-theme') || 'dark'; }
 function selectedAsset() { return assets.find((item) => item.tv === $('assetSelect').value) || assets[0]; }
+function selectedAnalysisAsset() { return assets.find((item) => item.tv === $('analysisAssetSelect').value) || selectedAsset(); }
 
 function syncSelectedAsset(source) {
   if (source === 'chart') $('analysisAssetSelect').value = $('assetSelect').value;
@@ -230,6 +232,7 @@ function showCalendarFallback(container) {
 }
 
 async function runAiAnalysis() {
+  console.info('Run AI Analysis clicked');
   if (isAnalysisRunning) return;
   if (Date.now() < analysisCooldownUntil) {
     const seconds = Math.ceil((analysisCooldownUntil - Date.now()) / 1000);
@@ -243,23 +246,36 @@ async function runAiAnalysis() {
   $('runAnalysis').disabled = true;
   $('runAnalysis').setAttribute('aria-busy', 'true');
   $('analysisError').textContent = '';
+  $('saveAnalysisToJournal').disabled = true;
+  updateReviewButtonState();
   renderLoadingResult();
   try {
-    const asset = selectedAsset();
+    const asset = selectedAnalysisAsset();
+    const selectedPrimaryProvider = $('primaryProvider').value;
+    const selectedReviewProvider = $('reviewProvider').value;
+    const selectedAssetValue = asset.short;
+    const selectedTimeframe = timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value;
+    const selectedStrategyMode = $('strategyMode').value;
+    const selectedRiskProfile = $('riskProfile').value;
+    const selectedAnalysisDepth = $('analysisDepth').value;
     const analysisPayload = {
-      provider: $('primaryProvider').value,
-      reviewer: $('reviewProvider').value,
-      asset: asset.short,
-      assetLabel: asset.label,
-      tradingViewSymbol: asset.tv,
-      assetClass: asset.assetClass,
-      timeframe: timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value,
-      strategyMode: $('strategyMode').value,
-      riskProfile: $('riskProfile').value,
-      analysisDepth: $('analysisDepth').value
+      provider: selectedPrimaryProvider,
+      reviewer: selectedReviewProvider,
+      asset: selectedAssetValue,
+      timeframe: selectedTimeframe,
+      strategyMode: selectedStrategyMode,
+      riskProfile: selectedRiskProfile,
+      analysisDepth: selectedAnalysisDepth
     };
+    console.info('Sending /api/analyze request');
     const response = await postJson('/api/analyze', analysisPayload);
-    if (!response || response.success !== true || !response.analysis) throw new Error(response?.message || 'AI analysis failed.');
+    console.info('Received /api/analyze response');
+    if (!response || response.success !== true || !response.analysis) {
+      const error = new Error(response?.message || 'Analysis temporarily unavailable.');
+      error.status = response?.status;
+      error.errorCode = response?.errorCode;
+      throw error;
+    }
     const contextPayload = {
       asset: asset.short,
       assetLabel: asset.label,
@@ -281,20 +297,22 @@ async function runAiAnalysis() {
     renderAnalysis(lastAnalysis);
     renderAutoScorecard(lastAnalysis.scorecard, lastAnalysis.score);
     $('saveAnalysisToJournal').disabled = false;
-    $('reviewAnalysis').disabled = $('reviewProvider').value === 'none';
+    updateReviewButtonState();
     $('lastAnalysisTime').textContent = `Last analysis: ${new Date(response.timestamp || lastAnalysis.generatedAt).toLocaleString()}`;
     setApiStatus('success', 'API status: analysis complete');
     showToast('AI analysis complete.', 'success');
   } catch (error) {
-    const message = error.name === 'AbortError' ? 'Analysis temporarily unavailable.' : (error.message || 'Analysis temporarily unavailable.');
+    const message = formatAnalysisError(error);
     $('analysisError').textContent = message;
     renderErrorResult(message);
     setApiStatus('error', 'API status: action needed');
+    updateReviewButtonState();
     showToast(message, 'error');
   } finally {
     isAnalysisRunning = false;
     $('runAnalysis').disabled = false;
     $('runAnalysis').removeAttribute('aria-busy');
+    updateReviewButtonState();
   }
 }
 
@@ -307,9 +325,19 @@ async function postJson(url, payload) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 30000);
   try {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || 'Analysis temporarily unavailable.');
+    if (!response.ok) {
+      const error = new Error(data.message || 'Analysis temporarily unavailable.');
+      error.status = response.status;
+      error.errorCode = data.errorCode;
+      throw error;
+    }
     if (!data || typeof data !== 'object') throw new Error('Analysis temporarily unavailable.');
     return data;
   } finally {
@@ -382,13 +410,12 @@ function hasCurrentMarketPrice(context) { return context?.marketContext?.dataCom
 function marketDataIsUnavailable(context) { return context?.marketContext?.ok === false || context?.marketData?.ok === false || context?.marketData?.marketDataAvailable === false || !hasCurrentMarketPrice(context); }
 function applyNoTradeFieldDisplay(result) {
   if (!isNoTradeOrWatch(result)) return result;
-  const dataMissing = marketDataIsUnavailable(result);
   return {
     ...result,
-    entryZone: dataMissing ? 'Not provided — current market data may be missing.' : 'Not applicable — No Trade setup.',
-    stopLoss: dataMissing ? 'Not provided — current market data may be missing.' : 'Not applicable — No Trade setup.',
-    takeProfits: dataMissing ? ['Not provided — current market data may be missing.'] : ['Not applicable — No valid trade setup.'],
-    riskReward: dataMissing ? 'Not provided — current market data may be missing.' : 'Not applicable — risk-reward not valid without confirmed setup.'
+    entryZone: 'Not applicable — No Trade setup.',
+    stopLoss: 'Not applicable — No Trade setup.',
+    takeProfits: ['Not applicable — No valid trade setup.', 'Not applicable — No valid trade setup.', 'Not applicable — No valid trade setup.'],
+    riskReward: 'Not applicable — no confirmed setup.'
   };
 }
 
@@ -433,6 +460,26 @@ function renderProviderStatuses(statuses = defaultProviderStatuses) {
     const missing = status.configured === false;
     return `<span class="provider-badge ${configured ? 'configured' : missing ? 'missing' : 'neutral'}"><strong>${escapeHtml(providerLabels[key])}:</strong> ${escapeHtml(status.message || (configured ? 'Configured' : 'Missing key'))}</span>`;
   }).join('');
+}
+
+
+function updateReviewButtonState() {
+  const button = $('reviewAnalysis');
+  if (!button) return;
+  button.disabled = !lastAnalysis || $('reviewProvider').value === 'none' || isAnalysisRunning;
+}
+
+function formatAnalysisError(error) {
+  if (error.name === 'AbortError') return 'Analysis temporarily unavailable. Check provider/model/billing/logs.';
+  const statusMessages = {
+    400: 'Invalid analysis request. Check selected asset/provider/settings.',
+    403: 'API origin blocked. Check ALLOWED_ORIGIN in Vercel.',
+    429: 'Too many requests. Please wait before trying again.',
+    500: 'Analysis temporarily unavailable. Check provider/model/billing/logs.',
+    503: 'Analysis temporarily unavailable. Check provider/model/billing/logs.'
+  };
+  const base = statusMessages[error.status] || error.message || 'Analysis temporarily unavailable.';
+  return error.errorCode ? `${base} (${sanitizePlainText(error.errorCode, 80)})` : base;
 }
 
 function renderLoadingResult() { $('analysisResult').innerHTML = '<div class="empty-state result-empty"><strong>Running analysis...</strong><span>Fetching configured market data, checking economic risk, and calling backend AI analysis.</span></div>'; }
