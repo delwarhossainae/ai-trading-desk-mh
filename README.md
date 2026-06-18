@@ -55,7 +55,10 @@ MARKET_DATA_OUTPUT_SIZE=250
 MARKET_DATA_TIMEZONE=UTC
 
 ECONOMIC_CALENDAR_PROVIDER=fmp
+# Uses FMP /stable/economic-calendar first, with /api/v3/economic_calendar as a safe fallback.
 ECONOMIC_CALENDAR_API_KEY=your_economic_calendar_api_key_here
+# Optional alias if ECONOMIC_CALENDAR_API_KEY is not set.
+FMP_API_KEY=your_fmp_api_key_here
 
 ALLOWED_ORIGIN=https://yourdomain.com
 
@@ -70,6 +73,13 @@ UPSTASH_REDIS_REST_TOKEN=your_upstash_token_here
 `.env` and `.env.local` must never be committed. API keys must be set only in Vercel Environment Variables or equivalent backend-only secret storage.
 
 GitHub Pages alone is not suitable for secure automatic AI API usage because it cannot protect API keys or run secured `/api/*` routes. GitHub Pages can host a static-only preview; automatic analysis requires a serverless backend deployment such as Vercel.
+
+
+## Economic calendar backend verification
+
+The embedded MQL5 calendar remains visual-only. Backend economic-risk verification is performed separately through `/api/economic-events` when `ECONOMIC_CALENDAR_PROVIDER=fmp` and a backend-only `ECONOMIC_CALENDAR_API_KEY` or `FMP_API_KEY` is configured. The serverless provider tries Financial Modeling Prep `/stable/economic-calendar` first and then safely falls back to `/api/v3/economic_calendar` if the stable endpoint is unavailable. API keys are never returned to the browser, raw provider URLs are not exposed, and provider errors are reduced to safe client messages.
+
+`/api/economic-events` distinguishes not configured, request failed, rate limited, timeout, verified with no relevant events, and verified with relevant events. XAUUSD filters focus on USD / United States high-impact macro events such as CPI, PPI, Core PCE, NFP, unemployment, Initial Jobless Claims, FOMC/Fed/Powell, interest-rate decisions, GDP, PMI/ISM, Retail Sales, Consumer Confidence, and JOLTS. Forex pairs filter by both pair currencies, for example EURUSD uses EUR and USD while GBPJPY uses GBP and JPY.
 
 ## Market data limitation
 

@@ -517,9 +517,15 @@ function applyNoTradeFieldDisplay(result) {
 
 function normalizeEconomicRisk(raw, context) {
   const risk = context.marketContext?.economicRisk;
-  if (risk?.verified === true || context.economicEvents?.ok === true) return readableString(raw.economicRisk || risk.summary || context.economicEvents?.riskSummary, 'Backend economic risk verified.');
-  if (context.economicEvents?.configured === false || risk?.configured === false || context.economicEvents?.ok === false || risk?.verified === false) return 'Visual calendar is available, but backend economic risk API could not verify events for this analysis.';
-  return readableString(raw.economicRisk || context.economicEvents?.riskSummary || context.economicEvents?.message, 'Visual calendar is available, but backend economic risk API could not verify events for this analysis.');
+  const events = context.economicEvents || {};
+  if (risk?.verified === true || events.verified === true) {
+    if ((risk?.events || events.events || []).length > 0) return 'Backend economic risk verified.';
+    return 'No relevant high-impact economic events found in the selected window.';
+  }
+  if (events.configured === false || risk?.configured === false) return 'Economic calendar backend API is not configured.';
+  if (events.message === 'Economic calendar backend API timed out. Calendar risk is unverified.' || risk?.message === 'Economic calendar backend API timed out. Calendar risk is unverified.') return 'Economic calendar backend API timed out. Calendar risk is unverified.';
+  if (events.ok === false || risk?.verified === false) return events.message || risk?.message || 'Visual calendar is available, but backend economic risk API could not verify events for this analysis.';
+  return readableString(raw.economicRisk || events.riskSummary || events.message, 'Visual calendar is available, but backend economic risk API could not verify events for this analysis.');
 }
 
 function enforceDecision(decision, score) {

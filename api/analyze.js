@@ -158,7 +158,7 @@ async function loadAnalysisContext(payload) {
     assetClass: marketContext.assetClass,
     marketContext,
     marketData: { ok: marketContext.ok, configured: marketContext.configured, provider: marketContext.provider, lastPrice: marketContext.currentPrice, message: marketContext.dataCompleteness.warnings.join(' ') || `Server market context loaded for ${marketContext.canonicalAsset}.` },
-    economicEvents: { ok: marketContext.economicRisk.verified, configured: marketContext.economicRisk.configured, events: marketContext.economicRisk.events, riskSummary: marketContext.economicRisk.summary },
+    economicEvents: { ok: marketContext.economicRisk.ok === true, configured: marketContext.economicRisk.configured, verified: marketContext.economicRisk.verified === true, events: marketContext.economicRisk.events, message: marketContext.economicRisk.message, riskSummary: marketContext.economicRisk.summary },
     economicRisk: marketContext.economicRisk
   };
 }
