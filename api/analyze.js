@@ -15,13 +15,19 @@ function jsonError(res, status, message, extra = {}) {
   return res.status(status).json({ success: false, ok: false, message, ...extra });
 }
 
+function requestError(message, errorCode) {
+  const error = new Error(message);
+  error.errorCode = errorCode;
+  return error;
+}
+
 function safeString(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
 }
 
 function validateAnalyzeBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body) || Buffer.byteLength(JSON.stringify(body), 'utf8') > MAX_BODY_BYTES) {
-    throw new Error('Invalid request body');
+    throw requestError('Invalid request body', 'INVALID_PAYLOAD');
   }
 
   const allowedKeys = new Set([
@@ -40,7 +46,7 @@ function validateAnalyzeBody(body) {
     'economicRisk',
     'manualPrompt'
   ]);
-  if (Object.keys(body).some((key) => !allowedKeys.has(key))) throw new Error('Invalid request body');
+  if (Object.keys(body).some((key) => !allowedKeys.has(key))) throw requestError('Invalid request body', 'INVALID_PAYLOAD');
 
   const payload = {
     provider: safeString(body.provider).toLowerCase(),
@@ -59,17 +65,17 @@ function validateAnalyzeBody(body) {
     manualPrompt: safeString(body.manualPrompt)
   };
 
-  if (!payload.provider) throw new Error('Missing provider');
-  if (!payload.asset) throw new Error('Missing asset');
-  if (!ALLOWED_PROVIDERS.includes(payload.provider)) throw new Error('Invalid request body');
-  if (!ALLOWED_REVIEWERS.includes(payload.reviewer)) throw new Error('Invalid request body');
-  if (!getAssetConfig(payload.asset)) throw new Error('Invalid request body');
-  if (!ALLOWED_TIMEFRAMES.includes(payload.timeframe)) throw new Error('Invalid request body');
-  if (!ALLOWED_STRATEGY_MODES.includes(payload.strategyMode)) throw new Error('Invalid request body');
-  if (!ALLOWED_RISK_PROFILES.includes(payload.riskProfile)) throw new Error('Invalid request body');
-  if (!ALLOWED_ANALYSIS_DEPTHS.includes(payload.analysisDepth)) throw new Error('Invalid request body');
-  if ([payload.assetLabel, payload.tradingViewSymbol, payload.assetClass, payload.manualPrompt].some((value) => /[<>`$\\]/.test(value))) throw new Error('Invalid request body');
-  if (payload.manualPrompt.length > 5000) throw new Error('Invalid request body');
+  if (!payload.provider) throw requestError('Missing provider', 'INVALID_PROVIDER');
+  if (!payload.asset) throw requestError('Missing asset', 'INVALID_ASSET');
+  if (!ALLOWED_PROVIDERS.includes(payload.provider)) throw requestError('Invalid request body', 'INVALID_PROVIDER');
+  if (!ALLOWED_REVIEWERS.includes(payload.reviewer)) throw requestError('Invalid request body', 'INVALID_PROVIDER');
+  if (!getAssetConfig(payload.asset)) throw requestError('Invalid request body', 'INVALID_ASSET');
+  if (!ALLOWED_TIMEFRAMES.includes(payload.timeframe)) throw requestError('Invalid request body', 'INVALID_PAYLOAD');
+  if (!ALLOWED_STRATEGY_MODES.includes(payload.strategyMode)) throw requestError('Invalid request body', 'INVALID_PAYLOAD');
+  if (!ALLOWED_RISK_PROFILES.includes(payload.riskProfile)) throw requestError('Invalid request body', 'INVALID_PAYLOAD');
+  if (!ALLOWED_ANALYSIS_DEPTHS.includes(payload.analysisDepth)) throw requestError('Invalid request body', 'INVALID_PAYLOAD');
+  if ([payload.assetLabel, payload.tradingViewSymbol, payload.assetClass, payload.manualPrompt].some((value) => /[<>`$\\]/.test(value))) throw requestError('Invalid request body', 'INVALID_PAYLOAD');
+  if (payload.manualPrompt.length > 5000) throw requestError('Invalid request body', 'INVALID_PAYLOAD');
 
   return payload;
 }
@@ -98,21 +104,23 @@ function forceNoTradeForMissingMarketData(analysis, marketData) {
 
 function normalizeError(error) {
   if (['Missing provider', 'Missing asset', 'Invalid request body'].includes(error.message)) {
-    return { message: error.message, status: 400 };
+    return { message: error.message, status: 400, errorCode: error.errorCode || 'INVALID_PAYLOAD' };
   }
 
   if (error.message === 'Missing API key' || error.code === 'PROVIDER_NOT_CONFIGURED') {
     return {
       message: error.message === 'Microsoft AI provider is not configured.' ? 'Microsoft AI provider is not configured. Add Azure OpenAI endpoint and API key in Vercel Environment Variables.' : (error.message || 'Selected AI provider is not configured. Add the required API key in backend environment variables.'),
-      status: 503
+      status: 503,
+      errorCode: 'INVALID_PROVIDER'
     };
   }
 
   if (error instanceof ProviderRequestError || error.name === 'ProviderRequestError') {
-    return { message: error.message, status: 502 };
+    const errorCode = /valid JSON|JSON/i.test(error.message || '') ? 'AI_INVALID_JSON' : (error.code === 'RATE_LIMITED' ? 'RATE_LIMITED' : 'AI_PROVIDER_FAILED');
+    return { message: 'AI provider request failed. Check Vercel logs.', status: 503, errorCode };
   }
 
-  return { message: 'Provider request failed. Check the selected API key, billing, model name, and provider limits.', status: 502 };
+  return { message: 'Backend analysis error. Check Vercel logs.', status: 500, errorCode: error.errorCode || 'UNKNOWN_ANALYZE_ERROR' };
 }
 
 async function loadAnalysisContext(payload) {
@@ -160,9 +168,14 @@ module.exports = async function handler(req, res) {
     const basePayload = validateAnalyzeBody(req.body);
     if (basePayload.analysisDepth === 'Deep' && await rateLimit(req, res, 'analyzeDeep')) return;
     if (basePayload.reviewer && basePayload.reviewer !== 'none' && await rateLimit(req, res, 'analyzeReview')) return;
-    const payload = await loadAnalysisContext(basePayload);
+    let payload;
+    try {
+      payload = await loadAnalysisContext(basePayload);
+    } catch (contextError) {
+      throw requestError('AI provider or market-data service is temporarily unavailable.', 'MARKET_CONTEXT_FAILED');
+    }
     const analyze = providers[payload.provider];
-    if (!analyze) throw new Error('Invalid request body');
+    if (!analyze) throw requestError('Invalid request body', 'INVALID_PROVIDER');
 
     let analysis = enforceScoreSafety(enforceMarketContextSafety(forceNoTradeForMissingMarketData(await analyze(payload), payload.marketData), payload.marketContext));
     let review = null;
@@ -190,6 +203,6 @@ module.exports = async function handler(req, res) {
     });
   } catch (error) {
     const normalized = normalizeError(error);
-    return jsonError(res, normalized.status, normalized.message, { providerStatuses: providerStatuses() });
+    return jsonError(res, normalized.status, normalized.message, { errorCode: normalized.errorCode || 'UNKNOWN_ANALYZE_ERROR', providerStatuses: providerStatuses() });
   }
 };
