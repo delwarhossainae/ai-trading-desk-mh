@@ -309,16 +309,18 @@ function normalizeTimeframePayloadValue(value) {
 }
 
 async function runAiAnalysis() {
+  console.log('Run AI Analysis clicked');
   debugAnalysisFlow('Run AI Analysis clicked');
   if (isAnalysisRunning) return;
   if (Date.now() < analysisCooldownUntil) {
     const seconds = Math.ceil((analysisCooldownUntil - Date.now()) / 1000);
-    showToast(`Please wait ${seconds}s before running analysis again.`, 'error');
-    setApiStatus('neutral', 'API status: idle');
+    const cooldownMessage = `Too many analysis requests. Please wait ${seconds}s before trying again.`;
+    $('analysisError').textContent = cooldownMessage;
+    showToast(cooldownMessage, 'error');
+    setApiStatus('neutral', 'API status: cooldown');
     return;
   }
   isAnalysisRunning = true;
-  analysisCooldownUntil = Date.now() + 10000;
   setApiStatus('loading', 'API status: loading');
   $('runAnalysis').disabled = true;
   $('runAnalysis').setAttribute('aria-busy', 'true');
@@ -344,6 +346,7 @@ async function runAiAnalysis() {
       riskProfile: selectedRiskProfile,
       analysisDepth: selectedAnalysisDepth
     };
+    console.log('Analyze payload', analysisPayload);
     debugAnalysisFlow('Payload sent to /api/analyze', analysisPayload);
     const response = await postJson('/api/analyze', analysisPayload);
     debugAnalysisFlow('/api/analyze response success', response?.success === true);
@@ -373,16 +376,18 @@ async function runAiAnalysis() {
     lastAnalysis = normalizeAnalysis(response.analysis, contextPayload);
     renderAnalysis(lastAnalysis);
     renderAutoScorecard(lastAnalysis.scorecard, lastAnalysis.score);
-    $('saveAnalysisToJournal').disabled = false;
+    $('saveAnalysisToJournal').disabled = !lastAnalysis;
     updateReviewButtonState();
     $('lastAnalysisTime').textContent = `Last analysis: ${new Date(response.timestamp || lastAnalysis.generatedAt).toLocaleString()}`;
     setApiStatus('success', 'API status: analysis complete');
     showToast('AI analysis complete.', 'success');
   } catch (error) {
+    if (error.status === 429) analysisCooldownUntil = Date.now() + 10000;
     const message = formatAnalysisError(error);
     $('analysisError').textContent = message;
     renderErrorResult(message);
     setApiStatus('error', 'API status: action needed');
+    $('saveAnalysisToJournal').disabled = !lastAnalysis;
     updateReviewButtonState();
     showToast(message, 'error');
   } finally {
@@ -408,6 +413,7 @@ async function postJson(url, payload) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
+    console.log('Analyze response status', response.status);
     debugAnalysisFlow('/api/analyze response status', response.status);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -552,10 +558,10 @@ function formatAnalysisError(error) {
   const statusMessages = {
     400: 'Invalid analysis request. Check selected asset/provider/settings.',
     403: 'API origin blocked. Check ALLOWED_ORIGIN in Vercel.',
-    429: 'Too many requests. Please wait before trying again.',
-    500: 'Analysis temporarily unavailable. Check provider/model/billing/logs.',
-    502: 'Analysis temporarily unavailable. Check provider/model/billing/logs.',
-    503: 'Analysis temporarily unavailable. Check provider/model/billing/logs.'
+    429: 'Too many analysis requests. Please wait before trying again.',
+    500: 'Backend analysis error. Check Vercel logs.',
+    502: 'Backend analysis error. Check Vercel logs.',
+    503: 'AI provider or market-data service is temporarily unavailable.'
   };
   const base = statusMessages[error.status] || error.message || 'Analysis temporarily unavailable.';
   return error.errorCode ? `${base} (${sanitizePlainText(error.errorCode, 80)})` : base;
