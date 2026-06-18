@@ -192,11 +192,11 @@
         reviewProvider.innerHTML = '<option value="none" selected>None</option>' + providerOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
       }
 
-      fetch('/api/status')
+      fetch('/api/provider-status')
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
-          if (data && data.success && data.statuses && typeof renderProviderStatuses === 'function') {
-            renderProviderStatuses(data.statuses);
+          if (data && typeof renderProviderStatuses === 'function') {
+            renderProviderStatuses(data.statuses || data);
           }
         })
         .catch(() => {});

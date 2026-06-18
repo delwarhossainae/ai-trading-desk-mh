@@ -1,4 +1,4 @@
-const DEMO_LOGIN_NOTE = 'Demo-only local session; not real authentication.';
+const DEMO_LOGIN_NOTE = 'Session: Local browser session | Authentication: Not enabled';
 const BACKUP_SCHEMA = 'ai-trading-desk-mh-local-backup';
 const BACKUP_VERSION = 2;
 
@@ -247,6 +247,10 @@ async function runAiAnalysis() {
       provider: $('primaryProvider').value,
       reviewer: $('reviewProvider').value,
       asset: asset.short,
+      assetLabel: asset.label,
+      tradingViewSymbol: asset.tv,
+      assetClass: asset.assetClass,
+      timeframe: timeframeLabels[$('timeframeSelect').value] || $('timeframeSelect').value,
       strategyMode: $('strategyMode').value,
       riskProfile: $('riskProfile').value,
       analysisDepth: $('analysisDepth').value
@@ -264,9 +268,9 @@ async function runAiAnalysis() {
       analysisDepth: analysisPayload.analysisDepth,
       primaryProvider: analysisPayload.provider,
       reviewProvider: analysisPayload.reviewer,
-      marketData: { configured: false, message: 'Current market data was not requested for this analysis run.' },
-      economicEvents: { configured: false, message: 'Latest news/calendar data could not be verified for this analysis run.' },
-      review: null
+      marketData: response.marketData || { configured: false, message: 'Market data unavailable. Configure market data provider before relying on automatic analysis.' },
+      economicEvents: response.economicEvents || { configured: false, message: 'Economic calendar is visual only. Backend economic risk API is not configured.' },
+      review: response.review || response.analysis.review || null
     };
     updateAssetInfoPanel(contextPayload.marketData.message);
     lastAnalysis = normalizeAnalysis(response.analysis, contextPayload);
@@ -311,8 +315,59 @@ async function postJson(url, payload) {
 
 function normalizeAnalysis(raw, context) {
   const score = clampNumber(raw.score, 0, 10);
-  const safeDecision = enforceDecision(raw.decision, score);
-  return { ...raw, ...context, decision: safeDecision, bias: allowedValue(raw.bias, ['Bullish', 'Bearish', 'Neutral'], 'Neutral'), confidence: clampNumber(raw.confidence, 0, 100), score, entryZone: raw.entryZone || 'Not provided — market data may be missing.', stopLoss: raw.stopLoss || 'Not provided.', takeProfits: raw.takeProfits || {}, riskReward: raw.riskReward || 'Not provided.', reasons: Array.isArray(raw.reasons) ? raw.reasons : [], invalidations: Array.isArray(raw.invalidations) ? raw.invalidations : [], economicRisk: raw.economicRisk || 'Latest news/calendar data could not be verified.', riskWarning: raw.riskWarning || 'This dashboard provides AI-assisted analysis for education and decision support only. It does not guarantee profit and does not execute trades.', scorecard: normalizeScorecard(raw.scorecard), model: raw.model || raw.modelUsed || 'unknown', providerUsed: raw.providerUsed || providerLabels[context.primaryProvider] || 'Unknown', modelUsed: raw.modelUsed || raw.model || 'unknown', review: context.review || null, reviewerNotes: formatReviewNotes(context.review), generatedAt: raw.generatedAt || new Date().toISOString() };
+  const safeDecision = enforceDecision(readableString(raw.decision, 'No Trade'), score);
+  const review = context.review || raw.review || null;
+  return {
+    ...raw,
+    ...context,
+    decision: safeDecision,
+    bias: allowedValue(readableString(raw.bias, 'Neutral'), ['Bullish', 'Bearish', 'Neutral'], 'Neutral'),
+    confidence: clampNumber(raw.confidence, 0, 100),
+    score,
+    entryZone: readableString(raw.entryZone, 'Not provided'),
+    stopLoss: readableString(raw.stopLoss, 'Not provided'),
+    takeProfits: normalizeTakeProfits(raw.takeProfits),
+    riskReward: readableString(raw.riskReward, 'Not provided'),
+    timeframeSummary: readableString(raw.timeframeSummary, 'Not provided'),
+    marketStructure: readableString(raw.marketStructure, 'Not provided'),
+    reasons: normalizeTextList(raw.reasons),
+    invalidations: normalizeTextList(raw.invalidations),
+    economicRisk: readableString(raw.economicRisk || context.economicEvents?.riskSummary || context.economicEvents?.message, 'Economic calendar is visual only. Backend economic risk API is not configured.'),
+    riskWarning: readableString(raw.riskWarning, 'This dashboard provides AI-assisted analysis for education and decision support only. It does not guarantee profit and does not execute trades.'),
+    scorecard: normalizeScorecard(raw.scorecard),
+    model: readableString(raw.model || raw.modelUsed, 'unknown'),
+    providerUsed: readableString(raw.providerUsed, providerLabels[context.primaryProvider] || 'Unknown'),
+    modelUsed: readableString(raw.modelUsed || raw.model, 'unknown'),
+    review,
+    reviewerNotes: formatReviewNotes(review),
+    generatedAt: raw.generatedAt || new Date().toISOString()
+  };
+}
+
+function readableString(value, fallback = 'Not provided') {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (Array.isArray(value)) return value.map((item) => readableString(item, '')).filter(Boolean).join('; ') || fallback;
+  if (typeof value === 'object') {
+    const text = Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '').map(([key, item]) => `${key.replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ').trim()}: ${readableString(item, '')}`).join('; ');
+    return text || fallback;
+  }
+  return String(value).trim() || fallback;
+}
+
+function normalizeTextList(value) {
+  if (Array.isArray(value)) return value.map((item) => readableString(item, '')).filter(Boolean);
+  const text = readableString(value, '');
+  return text ? [text] : [];
+}
+
+function normalizeTakeProfits(value) {
+  if (Array.isArray(value)) return { tp1: readableString(value[0], ''), tp2: readableString(value[1], ''), tp3: readableString(value[2], '') };
+  if (value && typeof value === 'object') return {
+    tp1: readableString(value.tp1 ?? value.tp_1 ?? value.target1 ?? value.target_1 ?? value.first ?? value[0], ''),
+    tp2: readableString(value.tp2 ?? value.tp_2 ?? value.target2 ?? value.target_2 ?? value.second ?? value[1], ''),
+    tp3: readableString(value.tp3 ?? value.tp_3 ?? value.target3 ?? value.target_3 ?? value.third ?? value[2], '')
+  };
+  return { tp1: readableString(value, ''), tp2: '', tp3: '' };
 }
 
 function enforceDecision(decision, score) {
@@ -343,7 +398,8 @@ function renderProviderStatuses(statuses = defaultProviderStatuses) {
   const container = $('providerStatusBadges');
   if (!container) return;
   container.innerHTML = Object.entries(defaultProviderStatuses).map(([key]) => {
-    const status = statuses[key] || defaultProviderStatuses[key];
+    const rawStatus = statuses[key] ?? defaultProviderStatuses[key];
+    const status = typeof rawStatus === 'boolean' ? { configured: rawStatus, message: rawStatus ? 'Configured' : (key === 'microsoft' ? 'Not configured' : 'Missing key') } : rawStatus;
     const configured = status.configured === true;
     const missing = status.configured === false;
     return `<span class="provider-badge ${configured ? 'configured' : missing ? 'missing' : 'neutral'}"><strong>${escapeHtml(providerLabels[key])}:</strong> ${escapeHtml(status.message || (configured ? 'Configured' : 'Missing key'))}</span>`;
@@ -371,7 +427,7 @@ function renderAnalysis(result) {
   `;
 }
 
-function renderList(items) { return (items.length ? items : ['Not provided.']).map((item) => `<li>${escapeHtml(item)}</li>`).join(''); }
+function renderList(items) { return (items.length ? items : ['Not provided.']).map((item) => `<li>${escapeHtml(readableString(item, 'Not provided.'))}</li>`).join(''); }
 
 function renderAutoScorecard(scorecard = normalizeScorecard(), total = 0) {
   $('autoScoreGrid').innerHTML = scoreCriteria.map(([key, label]) => {
