@@ -349,6 +349,7 @@ async function runAiAnalysis() {
     console.log('Analyze payload', analysisPayload);
     debugAnalysisFlow('Payload sent to /api/analyze', analysisPayload);
     const response = await postJson('/api/analyze', analysisPayload);
+    console.log('Analyze response success', response?.success === true);
     debugAnalysisFlow('/api/analyze response success', response?.success === true);
     if (!response || response.success !== true || !response.analysis) {
       const error = new Error(response?.message || 'Analysis temporarily unavailable.');
@@ -379,6 +380,7 @@ async function runAiAnalysis() {
     $('saveAnalysisToJournal').disabled = !lastAnalysis;
     updateReviewButtonState();
     $('lastAnalysisTime').textContent = `Last analysis: ${new Date(response.timestamp || lastAnalysis.generatedAt).toLocaleString()}`;
+    analysisCooldownUntil = 0;
     setApiStatus('success', 'API status: analysis complete');
     showToast('AI analysis complete.', 'success');
   } catch (error) {
@@ -416,6 +418,7 @@ async function postJson(url, payload) {
     console.log('Analyze response status', response.status);
     debugAnalysisFlow('/api/analyze response status', response.status);
     const data = await response.json().catch(() => ({}));
+    console.log('Analyze response success', data?.success === true);
     if (!response.ok) {
       const error = new Error(data.message || 'Analysis temporarily unavailable.');
       error.status = response.status;
@@ -554,14 +557,14 @@ function updateReviewButtonState() {
 }
 
 function formatAnalysisError(error) {
-  if (error.name === 'AbortError') return 'Analysis temporarily unavailable. Check provider/model/billing/logs.';
+  if (error.name === 'AbortError') return 'Analysis request timed out. Please try again.';
   const statusMessages = {
     400: 'Invalid analysis request. Check selected asset/provider/settings.',
     403: 'API origin blocked. Check ALLOWED_ORIGIN in Vercel.',
     429: 'Too many analysis requests. Please wait before trying again.',
     500: 'Backend analysis error. Check Vercel logs.',
     502: 'Backend analysis error. Check Vercel logs.',
-    503: 'AI provider or market-data service is temporarily unavailable.'
+    503: 'AI provider, market data, or calendar service is temporarily unavailable.'
   };
   const base = statusMessages[error.status] || error.message || 'Analysis temporarily unavailable.';
   return error.errorCode ? `${base} (${sanitizePlainText(error.errorCode, 80)})` : base;
