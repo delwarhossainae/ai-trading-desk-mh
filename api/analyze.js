@@ -74,6 +74,28 @@ function validateAnalyzeBody(body) {
   return payload;
 }
 
+function forceNoTradeForMissingMarketData(analysis, marketData) {
+  if (marketData?.ok === true && marketData?.lastPrice !== null && marketData?.lastPrice !== undefined) return analysis;
+  const marketMessage = 'Market data unavailable. Configure market data provider before relying on automatic analysis.';
+  const score = Math.min(Number(analysis?.score) || 0, 5);
+  return {
+    ...analysis,
+    decision: 'No Trade',
+    bias: analysis?.bias || 'Neutral',
+    confidence: Math.min(Number(analysis?.confidence) || 0, 50),
+    score,
+    entryZone: marketMessage,
+    stopLoss: 'No valid setup without verified current market data.',
+    takeProfits: [],
+    riskReward: 'No valid setup without verified current market data.',
+    marketStructure: [analysis?.marketStructure, marketMessage].filter(Boolean).join(' '),
+    economicRisk: analysis?.economicRisk || 'Latest news/calendar data could not be verified.',
+    reasons: [...(Array.isArray(analysis?.reasons) ? analysis.reasons : []), marketMessage],
+    invalidations: [...(Array.isArray(analysis?.invalidations) ? analysis.invalidations : []), 'Current market data is unavailable.'],
+    riskWarning: analysis?.riskWarning || 'This dashboard provides AI-assisted analysis for education and decision support only. It does not guarantee profit and does not execute trades.'
+  };
+}
+
 function normalizeError(error) {
   if (['Missing provider', 'Missing asset', 'Invalid request body'].includes(error.message)) {
     return { message: error.message, status: 400 };
@@ -81,7 +103,7 @@ function normalizeError(error) {
 
   if (error.message === 'Missing API key' || error.code === 'PROVIDER_NOT_CONFIGURED') {
     return {
-      message: error.message || 'Selected AI provider is not configured. Add the required API key in backend environment variables.',
+      message: error.message === 'Microsoft AI provider is not configured.' ? 'Microsoft AI provider is not configured. Add Azure OpenAI endpoint and API key in Vercel Environment Variables.' : (error.message || 'Selected AI provider is not configured. Add the required API key in backend environment variables.'),
       status: 503
     };
   }
@@ -137,11 +159,15 @@ module.exports = async function handler(req, res) {
     const analyze = providers[payload.provider];
     if (!analyze) throw new Error('Invalid request body');
 
-    const analysis = await analyze(payload);
+    let analysis = forceNoTradeForMissingMarketData(await analyze(payload), payload.marketData);
     let review = null;
 
     if (payload.reviewer && payload.reviewer !== 'none') {
-      review = await reviewWithProvider(payload.reviewer, { ...analysis, ...payload });
+      try {
+        review = await reviewWithProvider(payload.reviewer, { ...analysis, ...payload });
+      } catch (reviewError) {
+        review = { ok: false, configured: false, message: payload.reviewer === 'microsoft' ? 'Microsoft AI provider is not configured. Add Azure OpenAI endpoint and API key in Vercel Environment Variables.' : 'Primary analysis completed. Review provider is not configured.' };
+      }
     }
 
     return res.status(200).json({
