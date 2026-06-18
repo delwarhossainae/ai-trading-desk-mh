@@ -8,24 +8,17 @@ A premium, responsive trading-analysis dashboard that keeps TradingView as a vis
 - TradingView Advanced Chart widget for visual preview only.
 - Economic calendar display for visual review.
 - Automatic AI Analysis panel with asset, strategy mode, risk profile, analysis depth, API status, and last-analysis time.
-- Serverless API route structure for `/api/market-data`, `/api/economic-events`, `/api/analyze`, and optional `/api/review`.
-- Provider abstraction for future forex/metals, crypto, oil, and stocks market-data adapters.
-- Auto 10-point scorecard.
-- AI result panel with decision, bias, confidence, score, entry zone, stop loss idea, TP levels, risk-reward, reasons, invalidations, news risk, and risk note.
-- Trade journal that can save automatic AI results and manual final results later.
-- CSV journal export.
-- PDF / print journal export.
-- Full JSON local backup export and import.
-- Dark/light mode.
-- Mobile-first responsive layout.
+- Serverless API route structure for `/api/market-data`, `/api/economic-events`, and `/api/analyze`.
+- Standalone `/api/review` is disabled; use `/api/analyze` with a reviewer provider.
+- Provider abstraction for forex/metals, crypto, oil, and stocks market-data adapters.
+- Auto 10-point scorecard, trade journal, CSV export, PDF / print export, and JSON local backup export/import.
+- Dark/light mode and mobile-first responsive layout.
 
 ## Safety and trading rules
 
 - No auto-trading or broker execution.
-- No random buy/sell signals.
-- No forced trades.
-- No guaranteed profit language.
-- No “100% sure” language.
+- No random buy/sell signals and no forced trades.
+- No guaranteed profit language and no “100% sure” language.
 - Always allow “No Trade Setup — wait for better price action confirmation.”
 - No BUY or SELL setup unless score is 8/10 or higher.
 - Always include confirmation, invalidation, risk management, and news risk.
@@ -34,24 +27,63 @@ A premium, responsive trading-analysis dashboard that keeps TradingView as a vis
 
 ## Serverless environment variables
 
-Configure these only in the backend/serverless host. Never commit real secrets.
+Configure these only in Vercel Environment Variables or another secure backend/serverless host. Never commit real secrets.
 
 ```bash
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-MARKET_DATA_API_KEY=
-ECONOMIC_CALENDAR_API_KEY=
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-5-mini
+
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+ANTHROPIC_MODEL=claude-sonnet-4-5
+
+XAI_API_KEY=your_xai_api_key_here
+XAI_MODEL=grok-4
+
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-pro
+
+MICROSOFT_AI_API_KEY=your_microsoft_ai_api_key_here
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key_here
+MICROSOFT_AI_ENDPOINT=your_microsoft_ai_endpoint_here
+AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint_here
+MICROSOFT_AI_MODEL=your_microsoft_model_here
+AZURE_OPENAI_DEPLOYMENT=your_azure_openai_deployment_here
+
+MARKET_DATA_PROVIDER=twelvedata
+MARKET_DATA_API_KEY=your_market_data_api_key_here
+MARKET_DATA_OUTPUT_SIZE=250
+MARKET_DATA_TIMEZONE=UTC
+
+ECONOMIC_CALENDAR_PROVIDER=fmp
+ECONOMIC_CALENDAR_API_KEY=your_economic_calendar_api_key_here
+
+ALLOWED_ORIGIN=https://yourdomain.com
+
+# Optional durable server-side rate limiting. If omitted, serverless routes use
+# an in-memory fallback that is not enough for broad public production traffic.
+UPSTASH_REDIS_REST_URL=your_upstash_url_here
+UPSTASH_REDIS_REST_TOKEN=your_upstash_token_here
 ```
 
-`ANTHROPIC_API_KEY` and `ECONOMIC_CALENDAR_API_KEY` are optional. Claude review is disabled when Anthropic is not configured.
+`ALLOWED_ORIGIN` is required in production. Production API requests fail closed when it is missing, because sensitive routes must not use wildcard CORS.
+
+`.env` and `.env.local` must never be committed. API keys must be set only in Vercel Environment Variables or equivalent backend-only secret storage.
+
+GitHub Pages alone is not suitable for secure automatic AI API usage because it cannot protect API keys or run secured `/api/*` routes. GitHub Pages can host a static-only preview; automatic analysis requires a serverless backend deployment such as Vercel.
 
 ## Market data limitation
 
-The provider abstraction is in place, but no concrete paid/live data provider is hardcoded. If no provider key is configured, the app returns:
+The dashboard must not fake live data. If no provider key is configured, the backend returns a safe “not configured” message and automatic analysis must stay No Trade or Watch only when verified market context is incomplete.
 
-> Market data API is not configured. Add provider key in backend environment variables.
+## Security controls
 
-The dashboard must not fake live data.
+- Production origin protection fails closed when `ALLOWED_ORIGIN` is missing.
+- POST JSON routes require `Content-Type: application/json`.
+- `/api/analyze`, market data, and economic calendar routes have route-specific rate limits.
+- Deep analysis and reviewer-enabled analysis have lower quotas.
+- Optional Upstash Redis REST variables provide durable rate limiting; otherwise the fallback is in-memory only and not sufficient for broad public production.
+- Provider and upstream market/economic errors are returned to clients as generic safe messages.
+- Local backup import validates file size, total storage size, key allowlist, string values, and journal schema.
 
 ## How to run locally
 
@@ -67,6 +99,12 @@ Serverless API preview with Vercel CLI:
 vercel dev
 ```
 
-## GitHub Pages compatibility
+## Checks
 
-The frontend remains static-compatible, but GitHub Pages cannot securely run `/api/*` routes or protect API keys. Use Vercel or Netlify for the automatic AI workflow. GitHub Pages can still host a static-only preview, but automatic analysis requires serverless backend deployment.
+```bash
+npm run check:syntax
+npm run test:security
+npm run test:api
+npm run test:smoke
+npm audit --omit=dev
+```

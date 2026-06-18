@@ -1,6 +1,6 @@
 const { providers, providerStatuses, reviewWithProvider, ProviderRequestError } = require('../lib/ai/providerRouter');
 const { buildMarketContext } = require('../lib/market/marketContextBuilder');
-const { guardRequest, MAX_BODY_BYTES } = require('../lib/security/requestGuards');
+const { guardRequest, MAX_BODY_BYTES, rateLimit } = require('../lib/security/requestGuards');
 const { ALLOWED_ASSET_INPUTS, getAssetConfig } = require('../lib/config/assets');
 
 const ALLOWED_ASSETS = ALLOWED_ASSET_INPUTS;
@@ -53,8 +53,8 @@ function validateAnalyzeBody(body) {
     strategyMode: safeString(body.strategyMode),
     riskProfile: safeString(body.riskProfile),
     analysisDepth: safeString(body.analysisDepth),
-    marketData: body.marketData && typeof body.marketData === 'object' && !Array.isArray(body.marketData) ? body.marketData : null,
-    economicEvents: body.economicEvents && typeof body.economicEvents === 'object' && !Array.isArray(body.economicEvents) ? body.economicEvents : null,
+    marketData: null,
+    economicEvents: null,
     economicRisk: body.economicRisk || null,
     manualPrompt: safeString(body.manualPrompt)
   };
@@ -109,7 +109,7 @@ function normalizeError(error) {
   }
 
   if (error instanceof ProviderRequestError || error.name === 'ProviderRequestError') {
-    return { message: error.message, status: error.status && Number(error.status) >= 400 ? 502 : 502 };
+    return { message: error.message, status: 502 };
   }
 
   return { message: 'Provider request failed. Check the selected API key, billing, model name, and provider limits.', status: 502 };
@@ -127,6 +127,13 @@ async function loadAnalysisContext(payload) {
     economicEvents: { ok: marketContext.economicRisk.verified, configured: marketContext.economicRisk.configured, events: marketContext.economicRisk.events, riskSummary: marketContext.economicRisk.summary },
     economicRisk: marketContext.economicRisk
   };
+}
+
+function enforceScoreSafety(analysis) {
+  const score = Number(analysis?.score) || 0;
+  if (score >= 8) return analysis;
+  const decision = ['Buy Setup', 'Sell Setup'].includes(analysis?.decision) ? 'No Trade' : analysis?.decision;
+  return { ...analysis, decision: decision || 'No Trade', score, dataQualityWarning: analysis?.dataQualityWarning || 'Score below 8/10 cannot be shown as a Buy Setup or Sell Setup.' };
 }
 
 function enforceMarketContextSafety(analysis, marketContext) {
@@ -147,17 +154,17 @@ function enforceMarketContextSafety(analysis, marketContext) {
 }
 
 module.exports = async function handler(req, res) {
-  if (guardRequest(req, res)) return;
-  if (!String(req.headers['content-type'] || '').toLowerCase().includes('application/json')) {
-    return jsonError(res, 400, 'Invalid request body');
-  }
+  if (await guardRequest(req, res, { rateLimitKey: 'analyze' })) return;
 
   try {
-    const payload = await loadAnalysisContext(validateAnalyzeBody(req.body));
+    const basePayload = validateAnalyzeBody(req.body);
+    if (basePayload.analysisDepth === 'Deep' && await rateLimit(req, res, 'analyzeDeep')) return;
+    if (basePayload.reviewer && basePayload.reviewer !== 'none' && await rateLimit(req, res, 'analyzeReview')) return;
+    const payload = await loadAnalysisContext(basePayload);
     const analyze = providers[payload.provider];
     if (!analyze) throw new Error('Invalid request body');
 
-    let analysis = enforceMarketContextSafety(forceNoTradeForMissingMarketData(await analyze(payload), payload.marketData), payload.marketContext);
+    let analysis = enforceScoreSafety(enforceMarketContextSafety(forceNoTradeForMissingMarketData(await analyze(payload), payload.marketData), payload.marketContext));
     let review = null;
 
     if (payload.reviewer && payload.reviewer !== 'none') {
