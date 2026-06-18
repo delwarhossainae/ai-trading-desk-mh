@@ -6,6 +6,7 @@ const assets = [
   { label: 'XAUUSD / Gold', tv: 'OANDA:XAUUSD', short: 'XAUUSD', assetClass: 'metals' },
   { label: 'EUR/USD', tv: 'FX:EURUSD', short: 'EUR/USD', assetClass: 'forex' },
   { label: 'EUR/JPY', tv: 'FX:EURJPY', short: 'EUR/JPY', assetClass: 'forex' },
+  { label: 'EUR/GBP', tv: 'FX:EURGBP', short: 'EUR/GBP', assetClass: 'forex' },
   { label: 'USD/JPY', tv: 'FX:USDJPY', short: 'USD/JPY', assetClass: 'forex' },
   { label: 'GBP/USD', tv: 'FX:GBPUSD', short: 'GBP/USD', assetClass: 'forex' },
   { label: 'GBP/JPY', tv: 'FX:GBPJPY', short: 'GBP/JPY', assetClass: 'forex' },
@@ -423,9 +424,17 @@ function renderAnalysis(result) {
     <article class="result-card wide"><span>Main reasons</span><ul>${renderList(result.reasons)}</ul></article>
     <article class="result-card wide"><span>Invalid setup reasons</span><ul>${renderList(result.invalidations)}</ul></article>
     <article class="result-card wide"><span>Economic/news risk warning</span><p>${escapeHtml(result.economicRisk)}</p></article>
+    ${renderMarketContextWarnings(result)}
     <article class="result-card wide"><span>Timeframe / structure summary</span><p>${escapeHtml(result.timeframeSummary || '')}</p><p>${escapeHtml(result.marketStructure || '')}</p></article>
     ${result.review ? `<article class="result-card wide reviewer-card"><span>Reviewer notes${result.review.providerUsed ? ` · ${escapeHtml(String(result.review.providerUsed))}` : ''}</span><p>${escapeHtml(result.reviewerNotes || 'No reviewer notes returned.')}</p></article>` : ''}
   `;
+}
+
+
+function renderMarketContextWarnings(result) {
+  const warnings = result.marketContext?.riskFilters?.warnings || result.marketContext?.dataCompleteness?.warnings || [];
+  if (!warnings.length) return '';
+  return `<article class="result-card wide"><span>Market context warning</span><ul>${renderList(warnings)}</ul></article>`;
 }
 
 function renderList(items) { return (items.length ? items : ['Not provided.']).map((item) => `<li>${escapeHtml(readableString(item, 'Not provided.'))}</li>`).join(''); }
