@@ -1351,3 +1351,54 @@ html[data-theme="light"] .journal-fieldset { background: rgba(255,255,255,.68); 
 .reviewer-card { border-color: rgba(139,92,246,.35); background: rgba(139,92,246,.08); }
 @media (max-width: 1024px) { .provider-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); } .provider-status-badges { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .provider-controls { grid-template-columns: 1fr; } .provider-status-badges { grid-column: auto; } }
+
+/* Automatic analysis rendering and scorecard layout fixes */
+.score-panel {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+}
+.score-panel .score-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.score-panel .score-row {
+  grid-template-columns: 1fr;
+  align-content: space-between;
+}
+.score-panel .score-meter { width: 100%; }
+.timeframe-summary-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 8px 0 0;
+}
+.timeframe-summary-list div {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+}
+.timeframe-summary-list dt {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.timeframe-summary-list dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.provider-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 1180px) { .score-panel .score-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  .score-panel .score-grid,
+  .timeframe-summary-list { grid-template-columns: 1fr; }
+  .journal-table-wrap { max-width: 100%; overflow-x: auto; }
+}
