@@ -104,6 +104,7 @@ let calendarLoadToken = 0;
 let calendarScriptPromise = null;
 let analysisCooldownUntil = 0;
 let isAnalysisRunning = false;
+let analysisLoadingInterval = null;
 const $ = (id) => document.getElementById(id);
 
 function init() {
@@ -327,7 +328,7 @@ async function runAiAnalysis() {
   $('analysisError').textContent = '';
   $('saveAnalysisToJournal').disabled = true;
   updateReviewButtonState();
-  renderLoadingResult();
+  startAnalysisLoadingMessages();
   try {
     const asset = selectedAnalysisAsset();
     const selectedPrimaryProvider = normalizeProviderPayloadValue($('primaryProvider').value);
@@ -394,6 +395,7 @@ async function runAiAnalysis() {
     showToast(message, 'error');
   } finally {
     isAnalysisRunning = false;
+    stopAnalysisLoadingMessages();
     $('runAnalysis').disabled = false;
     $('runAnalysis').removeAttribute('aria-busy');
     updateReviewButtonState();
@@ -405,9 +407,16 @@ async function reviewAnalysis() {
   await runAiAnalysis();
 }
 
+function analysisRequestTimeoutMs(payload = {}) {
+  if (payload.analysisDepth === 'Fast') return 60000;
+  if (payload.analysisDepth === 'Deep') return 120000;
+  return 90000;
+}
+
 async function postJson(url, payload) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+  const timeoutMs = url === '/api/analyze' ? analysisRequestTimeoutMs(payload) : 30000;
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -557,7 +566,15 @@ function updateReviewButtonState() {
 }
 
 function formatAnalysisError(error) {
-  if (error.name === 'AbortError') return 'Analysis request timed out. Please try again.';
+  if (error.name === 'AbortError') return 'Analysis request timed out. The backend may still be processing. Try Fast mode or retry in a moment.';
+  const codeMessages = {
+    ANALYSIS_TIMEOUT: 'Analysis request timed out. Try Fast mode, reduce analysis depth, or retry.',
+    MARKET_DATA_TIMEOUT: 'Market data provider was slow. Analysis may be limited to Watch/No Trade.',
+    ECONOMIC_EVENTS_TIMEOUT: 'Economic calendar provider was slow. News risk is unverified.',
+    AI_PROVIDER_TIMEOUT: 'AI provider took too long to respond. Try again or use Fast mode.',
+    FUNCTION_TIMEOUT_RISK: 'Analysis is close to the serverless timeout limit. Try Fast mode or retry.'
+  };
+  if (error.errorCode && codeMessages[error.errorCode]) return codeMessages[error.errorCode];
   const statusMessages = {
     400: 'Invalid analysis request. Check selected asset/provider/settings.',
     403: 'API origin blocked. Check ALLOWED_ORIGIN in Vercel.',
@@ -570,7 +587,21 @@ function formatAnalysisError(error) {
   return error.errorCode ? `${base} (${sanitizePlainText(error.errorCode, 80)})` : base;
 }
 
-function renderLoadingResult() { $('analysisResult').innerHTML = '<div class="empty-state result-empty"><strong>Running analysis...</strong><span>Fetching configured market data, checking economic risk, and calling backend AI analysis.</span></div>'; }
+const loadingMessages = ['Preparing market context…', 'Checking economic risk…', 'Running AI analysis…', 'Finalizing result…'];
+function renderLoadingResult(message = loadingMessages[0]) { $('analysisResult').innerHTML = `<div class="empty-state result-empty"><strong>Running analysis...</strong><span>${escapeHtml(message)}</span></div>`; }
+function startAnalysisLoadingMessages() {
+  stopAnalysisLoadingMessages();
+  let index = 0;
+  renderLoadingResult(loadingMessages[index]);
+  analysisLoadingInterval = window.setInterval(() => {
+    index = Math.min(index + 1, loadingMessages.length - 1);
+    renderLoadingResult(loadingMessages[index]);
+  }, 7000);
+}
+function stopAnalysisLoadingMessages() {
+  if (analysisLoadingInterval) window.clearInterval(analysisLoadingInterval);
+  analysisLoadingInterval = null;
+}
 function renderErrorResult(message) { $('analysisResult').innerHTML = `<div class="empty-state result-empty error-result"><strong>Analysis unavailable.</strong><span>${escapeHtml(message)}</span></div>`; }
 
 function renderAnalysis(result) {
