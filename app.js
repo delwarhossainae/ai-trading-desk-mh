@@ -318,10 +318,11 @@ async function postJson(url, payload) {
 }
 
 function normalizeAnalysis(raw, context) {
-  const score = clampNumber(raw.score, 0, 10);
+  const scorecard = normalizeScorecard(raw.scorecard);
+  const score = clampNumber(raw.score ?? Object.values(scorecard).reduce((sum, value) => sum + value, 0), 0, 10);
   const safeDecision = enforceDecision(readableString(raw.decision, 'No Trade'), score);
   const review = context.review || raw.review || null;
-  return {
+  const safeResult = {
     ...raw,
     ...context,
     decision: safeDecision,
@@ -334,11 +335,12 @@ function normalizeAnalysis(raw, context) {
     riskReward: readableString(raw.riskReward, 'Not provided'),
     timeframeSummary: readableString(raw.timeframeSummary, 'Not provided'),
     marketStructure: readableString(raw.marketStructure, 'Not provided'),
+    dataQualityWarning: readableString(raw.dataQualityWarning, ''),
     reasons: normalizeTextList(raw.reasons),
     invalidations: normalizeTextList(raw.invalidations),
-    economicRisk: readableString(raw.economicRisk || context.economicEvents?.riskSummary || context.economicEvents?.message, 'Economic calendar is visual only. Backend economic risk API is not configured.'),
+    economicRisk: normalizeEconomicRisk(raw, context),
     riskWarning: readableString(raw.riskWarning, 'This dashboard provides AI-assisted analysis for education and decision support only. It does not guarantee profit and does not execute trades.'),
-    scorecard: normalizeScorecard(raw.scorecard),
+    scorecard,
     model: readableString(raw.model || raw.modelUsed, 'unknown'),
     providerUsed: readableString(raw.providerUsed, providerLabels[context.primaryProvider] || 'Unknown'),
     modelUsed: readableString(raw.modelUsed || raw.model, 'unknown'),
@@ -346,6 +348,7 @@ function normalizeAnalysis(raw, context) {
     reviewerNotes: formatReviewNotes(review),
     generatedAt: raw.generatedAt || new Date().toISOString()
   };
+  return applyNoTradeFieldDisplay(safeResult);
 }
 
 function readableString(value, fallback = 'Not provided') {
@@ -365,13 +368,35 @@ function normalizeTextList(value) {
 }
 
 function normalizeTakeProfits(value) {
-  if (Array.isArray(value)) return { tp1: readableString(value[0], ''), tp2: readableString(value[1], ''), tp3: readableString(value[2], '') };
-  if (value && typeof value === 'object') return {
-    tp1: readableString(value.tp1 ?? value.tp_1 ?? value.target1 ?? value.target_1 ?? value.first ?? value[0], ''),
-    tp2: readableString(value.tp2 ?? value.tp_2 ?? value.target2 ?? value.target_2 ?? value.second ?? value[1], ''),
-    tp3: readableString(value.tp3 ?? value.tp_3 ?? value.target3 ?? value.target_3 ?? value.third ?? value[2], '')
+  const targets = Array.isArray(value) ? value : value && typeof value === 'object' ? [
+    value.tp1 ?? value.tp_1 ?? value.target1 ?? value.target_1 ?? value.first ?? value[0],
+    value.tp2 ?? value.tp_2 ?? value.target2 ?? value.target_2 ?? value.second ?? value[1],
+    value.tp3 ?? value.tp_3 ?? value.target3 ?? value.target_3 ?? value.third ?? value[2]
+  ] : [value];
+  return targets.slice(0, 3).map((item) => readableString(item, '')).filter(Boolean);
+}
+
+function takeProfitAt(result, index) { return Array.isArray(result.takeProfits) ? (result.takeProfits[index] || '') : (result.takeProfits?.[`tp${index + 1}`] || ''); }
+function isNoTradeOrWatch(result) { return ['No Trade', 'Watch', 'Invalid Setup'].includes(result.decision) || Number(result.score) < 8; }
+function hasCurrentMarketPrice(context) { return context?.marketContext?.dataCompleteness?.hasCurrentPrice === true || context?.marketContext?.riskFilters?.hasCurrentPrice === true || context?.marketContext?.currentPrice !== undefined && context?.marketContext?.currentPrice !== null || context?.marketData?.lastPrice !== undefined && context?.marketData?.lastPrice !== null; }
+function marketDataIsUnavailable(context) { return context?.marketContext?.ok === false || context?.marketData?.ok === false || context?.marketData?.marketDataAvailable === false || !hasCurrentMarketPrice(context); }
+function applyNoTradeFieldDisplay(result) {
+  if (!isNoTradeOrWatch(result)) return result;
+  const dataMissing = marketDataIsUnavailable(result);
+  return {
+    ...result,
+    entryZone: dataMissing ? 'Not provided — current market data may be missing.' : 'Not applicable — No Trade setup.',
+    stopLoss: dataMissing ? 'Not provided — current market data may be missing.' : 'Not applicable — No Trade setup.',
+    takeProfits: dataMissing ? ['Not provided — current market data may be missing.'] : ['Not applicable — No valid trade setup.'],
+    riskReward: dataMissing ? 'Not provided — current market data may be missing.' : 'Not applicable — risk-reward not valid without confirmed setup.'
   };
-  return { tp1: readableString(value, ''), tp2: '', tp3: '' };
+}
+
+function normalizeEconomicRisk(raw, context) {
+  const risk = context.marketContext?.economicRisk;
+  if (risk?.verified === true || context.economicEvents?.ok === true) return readableString(raw.economicRisk || risk.summary || context.economicEvents?.riskSummary, 'Backend economic risk verified.');
+  if (context.economicEvents?.configured === false || risk?.configured === false || context.economicEvents?.ok === false || risk?.verified === false) return 'Visual calendar is available, but backend economic risk API could not verify events for this analysis.';
+  return readableString(raw.economicRisk || context.economicEvents?.riskSummary || context.economicEvents?.message, 'Visual calendar is available, but backend economic risk API could not verify events for this analysis.');
 }
 
 function enforceDecision(decision, score) {
@@ -421,13 +446,13 @@ function renderAnalysis(result) {
     <article class="result-card"><span>Trade score</span><strong>${escapeHtml(String(result.score))} / 10</strong><small>${escapeHtml(scoreVerdict(result.score))}</small></article>
     <article class="result-card"><span>Entry zone</span><strong>${escapeHtml(result.entryZone)}</strong></article>
     <article class="result-card"><span>Stop loss idea</span><strong>${escapeHtml(result.stopLoss)}</strong></article>
-    <article class="result-card"><span>TP1 / TP2 / TP3</span><strong>${escapeHtml([result.takeProfits.tp1, result.takeProfits.tp2, result.takeProfits.tp3].filter(Boolean).join(' / ') || 'Not provided')}</strong></article>
+    <article class="result-card"><span>TP1 / TP2 / TP3</span><strong>${escapeHtml((Array.isArray(result.takeProfits) ? result.takeProfits : [result.takeProfits?.tp1, result.takeProfits?.tp2, result.takeProfits?.tp3]).filter(Boolean).join(' / ') || 'Not provided')}</strong></article>
     <article class="result-card"><span>Risk-reward estimate</span><strong>${escapeHtml(result.riskReward)}</strong></article>
     <article class="result-card wide"><span>Main reasons</span><ul>${renderList(result.reasons)}</ul></article>
     <article class="result-card wide"><span>Invalid setup reasons</span><ul>${renderList(result.invalidations)}</ul></article>
     <article class="result-card wide"><span>Economic/news risk warning</span><p>${escapeHtml(result.economicRisk)}</p></article>
     ${renderMarketContextWarnings(result)}
-    <article class="result-card wide"><span>Timeframe / structure summary</span><p>${escapeHtml(result.timeframeSummary || '')}</p><p>${escapeHtml(result.marketStructure || '')}</p></article>
+    <article class="result-card wide timeframe-summary-card"><span>Timeframe / structure summary</span>${renderTimeframeSummary(result)}</article>
     ${result.review ? `<article class="result-card wide reviewer-card"><span>Reviewer notes${result.review.providerUsed ? ` · ${escapeHtml(String(result.review.providerUsed))}` : ''}</span><p>${escapeHtml(result.reviewerNotes || 'No reviewer notes returned.')}</p></article>` : ''}
   `;
 }
@@ -435,8 +460,70 @@ function renderAnalysis(result) {
 
 function renderMarketContextWarnings(result) {
   const warnings = result.marketContext?.riskFilters?.warnings || result.marketContext?.dataCompleteness?.warnings || [];
-  if (!warnings.length) return '';
-  return `<article class="result-card wide"><span>Market context warning</span><ul>${renderList(warnings)}</ul></article>`;
+  const status = marketContextStatusMessage(result);
+  return `<article class="result-card wide"><span>Market context status</span><p>${escapeHtml(status)}</p>${warnings.length ? `<ul>${renderList(warnings)}</ul>` : ''}</article>`;
+}
+
+function marketContextStatusMessage(result) {
+  if (result.marketContext?.ok === true && hasCurrentMarketPrice(result)) {
+    const partial = result.marketContext?.dataCompleteness?.availableTimeframes?.length && result.marketContext?.dataCompleteness?.requestedTimeframes?.length && result.marketContext.dataCompleteness.availableTimeframes.length < result.marketContext.dataCompleteness.requestedTimeframes.length;
+    return partial ? 'Partial market context loaded. Some indicators/timeframes may be unavailable.' : 'Market context loaded.';
+  }
+  if (result.marketContext?.ok === false || result.marketData?.ok === false) return 'Market data unavailable. Configure market data provider before relying on automatic analysis.';
+  return 'Partial market context loaded. Some indicators/timeframes may be unavailable.';
+}
+
+
+function renderTimeframeSummary(result) {
+  const summary = result.marketContext?.selectedTimeframeSummary || result.marketContext?.timeframes?.[result.marketContext?.selectedTimeframe] || {};
+  const selectedTimeframe = summary.timeframe || result.marketContext?.selectedTimeframe || result.timeframe || 'Not available';
+  const bollinger = summary.bollinger || {};
+  const rsiValue = cleanDisplay(summary.rsi);
+  const rows = [
+    ['Selected timeframe', selectedTimeframe],
+    ['Current price', result.marketContext?.currentPrice ?? summary.lastClose ?? result.marketData?.lastPrice],
+    ['Trend', titleCase(summary.trend)],
+    ['EMA alignment', titleCase(summary.emaAlignment)],
+    ['EMA 50', summary.ema50],
+    ['EMA 100', summary.ema100],
+    ['EMA 200', summary.ema200],
+    ['RSI 14', `${rsiValue}${rsiValue !== 'Not available' ? ` — ${rsiLabel(summary.rsi)}` : ''}`],
+    ['ATR 14', summary.atr],
+    ['Bollinger', `Upper ${cleanDisplay(bollinger.upper)} / Middle ${cleanDisplay(bollinger.middle)} / Lower ${cleanDisplay(bollinger.lower)}`],
+    ['Nearest support', summary.support],
+    ['Nearest resistance', summary.resistance],
+    ['Higher timeframe status', higherTimeframeStatus(result.marketContext)],
+    ['Structure summary', readableString(result.marketStructure || result.timeframeSummary, isNoTradeOrWatch(result) ? `${selectedTimeframe} ${cleanDisplay(summary.trend).toLowerCase()} near available levels, so No Trade / Watch only.` : 'Not available')]
+  ];
+  return `<dl class="timeframe-summary-list">${rows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(cleanDisplay(value))}</dd></div>`).join('')}</dl>`;
+}
+
+function cleanDisplay(value) {
+  if (value === undefined || value === null || value === '') return 'Not available';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'Not available';
+  const text = readableString(value, 'Not available').replace(/\b(undefined|NaN|Infinity|-Infinity|\[object Object\])\b/g, '').trim();
+  return text || 'Not available';
+}
+
+function titleCase(value) {
+  const text = cleanDisplay(value);
+  if (text === 'Not available') return text;
+  return text.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function rsiLabel(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 'Not available';
+  if (number <= 30) return 'Oversold';
+  if (number >= 70) return 'Overbought';
+  return 'Neutral';
+}
+
+function higherTimeframeStatus(marketContext) {
+  const timeframes = marketContext?.timeframes || {};
+  const trends = Object.values(timeframes).map((item) => item?.trend).filter(Boolean);
+  if (!trends.length) return 'Not available';
+  return new Set(trends).size === 1 ? titleCase(trends[0]) : 'Mixed';
 }
 
 function renderList(items) { return (items.length ? items : ['Not provided.']).map((item) => `<li>${escapeHtml(readableString(item, 'Not provided.'))}</li>`).join(''); }
@@ -474,9 +561,9 @@ function fillJournalFromAnalysis() {
   $('jModel').value = analysisProviderSummary(lastAnalysis);
   $('jEntry').value = lastAnalysis.entryZone;
   $('jSl').value = lastAnalysis.stopLoss;
-  $('jTp1').value = lastAnalysis.takeProfits.tp1 || '';
-  $('jTp2').value = lastAnalysis.takeProfits.tp2 || '';
-  $('jTp3').value = lastAnalysis.takeProfits.tp3 || '';
+  $('jTp1').value = takeProfitAt(lastAnalysis, 0);
+  $('jTp2').value = takeProfitAt(lastAnalysis, 1);
+  $('jTp3').value = takeProfitAt(lastAnalysis, 2);
   $('jRr').value = lastAnalysis.riskReward;
   $('jReasons').value = lastAnalysis.reasons.join('\n');
   $('jAiDecision').value = analysisDecisionSummary(lastAnalysis);
@@ -498,9 +585,9 @@ function buildJournalEntryFromAnalysis() {
     model: analysisProviderSummary(lastAnalysis),
     entry: lastAnalysis.entryZone,
     sl: lastAnalysis.stopLoss,
-    tp1: lastAnalysis.takeProfits.tp1 || '',
-    tp2: lastAnalysis.takeProfits.tp2 || '',
-    tp3: lastAnalysis.takeProfits.tp3 || '',
+    tp1: takeProfitAt(lastAnalysis, 0),
+    tp2: takeProfitAt(lastAnalysis, 1),
+    tp3: takeProfitAt(lastAnalysis, 2),
     rr: lastAnalysis.riskReward,
     result: 'Pending',
     reasons: lastAnalysis.reasons.join('\n'),
