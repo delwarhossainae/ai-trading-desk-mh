@@ -269,10 +269,11 @@ async function runAiAnalysis() {
       primaryProvider: analysisPayload.provider,
       reviewProvider: analysisPayload.reviewer,
       marketData: response.marketData || { configured: false, message: 'Market data unavailable. Configure market data provider before relying on automatic analysis.' },
+      marketContext: response.marketContext || null,
       economicEvents: response.economicEvents || { configured: false, message: 'Economic calendar is visual only. Backend economic risk API is not configured.' },
       review: response.review || response.analysis.review || null
     };
-    updateAssetInfoPanel(contextPayload.marketData.message);
+    updateAssetInfoPanel([contextPayload.marketData.message, ...(contextPayload.marketContext?.riskFilters?.warnings || [])].filter(Boolean).join(' '));
     lastAnalysis = normalizeAnalysis(response.analysis, contextPayload);
     renderAnalysis(lastAnalysis);
     renderAutoScorecard(lastAnalysis.scorecard, lastAnalysis.score);
