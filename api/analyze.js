@@ -15,6 +15,27 @@ function jsonError(res, status, message, extra = {}) {
   return res.status(status).json({ success: false, ok: false, message, ...extra });
 }
 
+function analysisTimeoutMs(depth) {
+  if (depth === 'Deep') return 115000;
+  if (depth === 'Fast') return 65000;
+  return 90000;
+}
+
+function timeoutError(message, errorCode) {
+  const error = new Error(message);
+  error.errorCode = errorCode;
+  error.status = 504;
+  return error;
+}
+
+function withTimeout(promise, timeoutMs, message, errorCode) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(timeoutError(message, errorCode)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
 function requestError(message, errorCode) {
   const error = new Error(message);
   error.errorCode = errorCode;
@@ -115,7 +136,12 @@ function normalizeError(error) {
     };
   }
 
+  if (error.errorCode === 'ANALYSIS_TIMEOUT') {
+    return { message: 'Analysis request timed out.', status: 504, errorCode: 'ANALYSIS_TIMEOUT' };
+  }
+
   if (error instanceof ProviderRequestError || error.name === 'ProviderRequestError') {
+    if (error.code === 'AI_PROVIDER_TIMEOUT') return { message: 'AI provider took too long to respond.', status: 504, errorCode: 'AI_PROVIDER_TIMEOUT' };
     const errorCode = /valid JSON|JSON/i.test(error.message || '') ? 'AI_INVALID_JSON' : (error.code === 'RATE_LIMITED' ? 'RATE_LIMITED' : 'AI_PROVIDER_FAILED');
     return { message: 'AI provider request failed. Check Vercel logs.', status: 503, errorCode };
   }
@@ -177,7 +203,7 @@ module.exports = async function handler(req, res) {
     const analyze = providers[payload.provider];
     if (!analyze) throw requestError('Invalid request body', 'INVALID_PROVIDER');
 
-    let analysis = enforceScoreSafety(enforceMarketContextSafety(forceNoTradeForMissingMarketData(await analyze(payload), payload.marketData), payload.marketContext));
+    let analysis = enforceScoreSafety(enforceMarketContextSafety(forceNoTradeForMissingMarketData(await withTimeout(analyze(payload), analysisTimeoutMs(payload.analysisDepth), 'Analysis request timed out.', 'ANALYSIS_TIMEOUT'), payload.marketData), payload.marketContext));
     let review = null;
 
     if (payload.reviewer && payload.reviewer !== 'none') {
